@@ -1,4 +1,4 @@
-# stephen_portfolio
+# Stephen_portfolio
 
 ## About Me
 
@@ -6,4 +6,6 @@ I am polymer chemist with a master's of Science in Polymer and Coatings Science 
 
 ## Table of Contents
 
-Demonstration for potential employers.
+### Course Work
+
+### Research Work

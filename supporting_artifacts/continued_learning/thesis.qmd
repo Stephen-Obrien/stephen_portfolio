@@ -1,0 +1,106 @@
+---
+title: "refrence factors"
+format: 
+  html:
+    self-contained: true
+editor: visual
+code-fold: true
+execute: 
+  warning: false
+  messages: false
+theme: mint
+---
+
+## 
+
+```{r}
+#| include: false
+library(tidyverse)
+library(ggbreak)
+source(here::here("supporting_artifacts", "continued_learning", "functions.R"))
+
+compiled <- readxl::read_excel(here::here("supporting_artifacts", "continued_learning",
+                                          "compiled results.xlsx"),
+                    n_max = 4,
+                    sheet = 1)
+compiled_mg <- readxl::read_excel(here::here("supporting_artifacts", "continued_learning",
+                                             "compiled results.xlsx"),
+                    n_max = 4,
+                    sheet = 2)
+```
+
+## 1
+
+```{r}
+fourMG <- import_gc(here::here("supporting_artifacts", "continued_learning",
+                               "4methylguaiacol.csv"))
+
+plot <- fourMG_plot(fourMG, title = "4-methylguaicol Control") +
+  theme(plot.title = element_text(size = 28))
+
+GC_anal(fourMG,12.85 , 13, "4-methylguaicol Control")
+```
+
+## 1.2
+
+```{r}
+
+compiled_clean <- compiled |> 
+  pivot_longer(cols = "alpha":"gamma", names_to = "CD", values_to = "umole_per_g")
+compiled_clean |> knitr::kable()
+
+compiled_mg_clean <- compiled_mg |> 
+  pivot_longer(cols = "alpha":"gamma", names_to = "CD", values_to = "umole_per_g")
+
+
+#moles plot
+plot_moles <- compiled_clean |> ggplot() +
+  geom_col(position = "dodge", 
+           mapping = aes(x = fct_reorder(phenol, umole_per_g), 
+                                             y = umole_per_g, 
+                                             fill = CD)
+           ) +
+  scale_fill_brewer(palette="Set1") + 
+  labs(y = NULL, x = "Phenol",
+       title = 
+         "Cyclodextrin Capture Effeciency \nin µmole of Phenol Captured \nper g of Cyclodextrin (µmole / g)",
+       fill = "Cylodextrin Type"
+       )  + 
+  theme(legend.position = "left",
+        title = element_text(size = 9)) +
+  scale_x_discrete(guide = guide_axis(n.dodge=2))
+
+#mg plot 
+plot_mg <- compiled_mg_clean |> ggplot() +
+  geom_col(position = "dodge", 
+           mapping = aes(x = fct_reorder(phenol, umole_per_g), 
+                                             y = umole_per_g, 
+                                             fill = CD),
+           show.legend = FALSE
+           ) +
+  scale_fill_brewer(palette = "Set1") + 
+  labs(y = NULL, x = "Phenol",
+       title = 
+         "Cyclodextrin Capture Effeciency \nin mg of Phenol Captured \nper g of Cyclodextrin (mg / g)",
+       fill = NULL
+       )  + 
+  theme(legend.position = "left",
+        title = element_text(size = 9)) +
+  scale_x_discrete(guide = guide_axis(n.dodge=2)) 
+
+#layout
+ggpubr::ggarrange(plot_mg, plot_moles, 
+          ncol = 2, nrow = 1, 
+          common.legend = TRUE,
+          legend = "left"
+          )
+```
+
+## 2
+
+```{r}
+
+compiled |> knitr::kable()
+compiled_mg |> knitr::kable()
+
+```

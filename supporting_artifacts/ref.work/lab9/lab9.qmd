@@ -1,0 +1,96 @@
+---
+title: "Lab 9: Baby Names"
+format: 
+  html:
+    self-contained: true
+editor: visual
+code-fold: true
+execute: 
+  warning: false
+theme: mint
+---
+
+# 1
+
+```{r set_up}
+library(tidyverse)
+bb_names <- read_csv(here::here("supporting_artifacts", "ref.work", "lab9", "StateNames_A.csv"))
+bb_names <- bb_names |> rename("Sex" = "Gender")
+```
+
+# 2
+
+```{r table}
+bb_clean <- bb_names |> filter(Name == "Allison") |> 
+  group_by(Year, Sex) |> 
+  summarize(n = sum(Count))
+
+bb_clean <- bb_clean |>
+  pivot_wider(names_from = Sex, values_from = n, values_fill = 0) |> 
+  rename("Female" = "F", "Male" = "M") |> print()
+```
+
+# 3
+
+```{r visial}
+bb_clean <- bb_clean |> select(Year, Female)
+
+bb_clean|> ggplot(mapping = aes(x = Year, y = Female)) + 
+  geom_point(color = "darkgreen") +
+  geom_line()+
+  labs(title = "Number of Babies Assigned Female At Birth Named Allison", y = NULL) +
+  theme(plot.title = element_text(size = 14))
+```
+
+# 3.2
+
+```{r lm}
+bb_lm <- bb_clean |> lm(Female ~ Year, data = _)
+```
+
+# 4
+
+Number of babies named Allison and assigned female at birth = 1042 - 1.353 \* year
+
+```{r}
+bb_lm |> broom::augment() |> 
+  ggplot(aes(x = Year, y = .resid)) +
+  geom_point(color = "darkmagenta") +
+  labs(Title = "Residuals Based on Linear Model", y = NULL) +
+  theme(plot.title = element_text(hjust = 0.5, size = 14) )
+
+broom::glance(bb_lm) |> select(r.squared)
+```
+
+### 
+
+The name Alison has been trending down in popularity since 1997. A linear model that models this trend predict lower than the number of babies named Alison in more recent years. Rare names are cool and it seems like people might be catching on based on the residuals. Also, with r squared value of 0.58 we can not place too much emphasis on the correlation of this trend.
+
+# 5. Spelling by state
+
+```{r}
+bb_clean <- bb_names |> filter(
+  Name %in% c("Alan", "Allan", "Allen"),
+  State == "CA" | State == "PA",
+  Year == 2000,
+  Sex == "M"
+  )
+
+bb_clean <- bb_clean |> 
+  group_by(State, Name) |> 
+  summarize(n = sum(Count))
+
+bb_clean |> 
+  pivot_wider(names_from = Name, values_from = n, 
+              names_prefix = "Number spelled ",
+              values_fill = 0)
+
+bb_clean |> group_by(State) |> 
+  mutate(percent = n/sum(n)*100) |> 
+  select(Name, State, percent) |> 
+  pivot_wider(names_from = Name, values_from = percent,
+              names_prefix = "Percent spelled ",
+              values_fill = 0)
+```
+
+In California and in Pennsylvania the the spelling Allan had the lowest percent both states.
