@@ -1,0 +1,72 @@
+---
+title: "Lab 9: Baby Names"
+format: 
+  html:
+    self-contained: true
+editor: visual
+code-fold: true
+execute: 
+  warning: false
+theme: mint
+---
+
+## 
+
+```{r}
+#| include: false
+library(tidyverse)
+bb_names <- read_csv(here::here("supporting_artifacts", "ref.work", "lab9", "StateNames_A.csv"))
+bb_names <- bb_names |> rename("Sex" = "Gender")
+```
+
+## DT Datatable Table
+
+```{r}
+bb_clean <- bb_names |> filter(
+  Name == "Allan" | Name == "Allen" | Name == "Alan",
+  State == "CA" | State == "PA",
+  Year == 2000,
+  Sex == "M"
+  )
+
+bb_clean <- bb_clean |> 
+  group_by(State, Name) |> 
+  summarize(n = sum(Count))
+
+prob <- bb_clean |> group_by(State) |> 
+  mutate(percent = n/sum(n)*100) |> 
+  select(Name, State, percent) |> 
+  pivot_wider(names_from = Name, values_from = percent,
+              values_fill = 0)
+
+prob |> DT::datatable(class = 'cell-border stripe', 
+              filter = 'top',
+              options = list(autoWidth = TRUE, dom = 'tip'),
+              rownames = FALSE,
+              caption = 
+                "Percent of Each Spelling for Babies Assigned Male at Birth and Born in 2000"
+              )
+```
+
+## Kable Tables
+
+```{r}
+bb_clean |> 
+  pivot_wider(names_from = Name, values_from = n, 
+              names_prefix = "Frequency of spelling ",
+              values_fill = 0) |> 
+  knitr::kable()
+
+prob |> knitr::kable()
+```
+
+```{r table}
+bb_clean <- bb_names |> filter(Name == "Allison") |> 
+  group_by(Year, Sex) |> 
+  summarize(n = sum(Count))
+
+bb_clean |>
+  pivot_wider(names_from = Sex, values_from = n, values_fill = 0) |> 
+  rename("Female" = "F", "Male" = "M") |> 
+  knitr::kable()
+```

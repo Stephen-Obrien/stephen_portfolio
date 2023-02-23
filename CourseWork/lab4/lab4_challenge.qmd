@@ -1,0 +1,126 @@
+---
+title: "lab4_challenge"
+format: 
+  html:
+    self-contained: true
+editor: visual
+code-fold: true
+execute: 
+  warning: false
+theme: mint
+---
+
+# **5 Challenge**
+
+A joke in the media is that Millennials can't afford houses, because they spend all their money buying avocado toast. Let's use this dataset to address that claim.
+
+Find or make a dataset with house prices for these four California regions. Join this dataset with your California avocado dataset. Use your new joined dataset to make an argument about the relationship between house prices and avocado prices/sales. Support your argument with a plot.
+
+The data for housing is from https://www.kaggle.com/datasets/camnugent/california-housing-prices. it contains housing pricing for California from the 1990 California census. Unfortunately this is not in the same time frame as the avocado data and is not the best representation for housing today, but it is good enough for this exercise.
+
+```{r set_up}
+#| warning: false
+#| messages: false
+library(tidyverse)
+library(ggplot2)
+library(ggpubr)
+library(here)
+housing <- read_csv(here::here("supporting_artifacts", "ref.work", "lab4", "housing.csv"))
+avocado <- read_csv(here::here("supporting_artifacts", "ref.work", "lab4", "avocado.csv"))
+```
+
+# 1
+
+```{r clean_housing}
+housing_clean <- housing |> 
+  filter(latitude == c("38.58", "37.77", "34.05", "32.71")) |>
+  mutate(PopPerHouse = population/households) |> 
+  select(latitude, median_house_value, PopPerHouse) |> 
+  group_by(latitude) |> 
+  summarize(
+    across(median_house_value:PopPerHouse, .fns = ~median(.x, na.rm = TRUE))
+    )
+
+housing_clean <- housing_clean |> 
+  rename("MedianHousingPrice"= "median_house_value", 
+         "MedianPopPerHouse" = "PopPerHouse",
+          "region" = "latitude") |>
+  mutate(region = as.character(region)) |> 
+  mutate(
+    region = case_when(
+    region == "38.58" ~ "Sacromento",
+    region == "37.77" ~ "SanFrancisco",
+    region == "34.05" ~ "LosAngeles",
+    region == "32.71" ~ "SanDiego" )
+  )
+```
+
+## 1.2
+
+```{r clean_avocados}
+avocado_clean <- avocado |> 
+  rename(small = "4046", large = "4225", xlarge = "4770", TotalVolume = "Total Volume") 
+
+regions <- 
+  as_tibble_col(c("Plains", "SouthCentral", "Southeast", 
+                  "West", "Northeast", 
+                  "NorthernNewEngland", "Midsouth", 
+                  "WestTexNewMexico", "GreatLakes" ), 
+                column_name = "MajorRegions")
+cali <- as_tibble_col(c("LosAngeles", "SanDiego", "Sacramento", "SanFrancisco"),
+                      column_name = "city")
+
+avocado_clean <- 
+  semi_join(avocado_clean, cali, c("region" = "city"))
+
+avocado_clean <- avocado_clean |> 
+  select(region, type, TotalVolume, AveragePrice) |> 
+  group_by(region) |> 
+  summarize(MeanTotalAvocados = mean(TotalVolume),
+            MedianTotalAvocados= median(TotalVolume))
+```
+
+## 1.3
+
+```{r join_data}
+california <- 
+  full_join(housing_clean, avocado_clean)
+```
+
+# 2
+
+```{r plot}
+density_Vs_avocados <- 
+  ggplot(
+  data = california, 
+  mapping =  aes(
+    x = MedianPopPerHouse, y = MedianTotalAvocados, color = region
+    )
+  ) +
+  geom_point()+
+  ylab(NULL)+ 
+  xlab("People/House") +
+  labs(title = "Avocados Sold Vs. People Per Household")
+
+HousePrice_Vs_Avocados <- 
+  ggplot(
+  data = california, 
+  mapping =  aes(x = MedianHousingPrice, y = MedianTotalAvocados, 
+                 color = region)
+  ) +
+  geom_point() +
+  ylab(NULL) + 
+  xlab("Median House Price") +
+  labs(title = "Avocados Sold Vs. Median House Price")
+
+
+
+ggarrange(density_Vs_avocados, HousePrice_Vs_Avocados, 
+          ncol = 1, nrow = 2, 
+          common.legend = TRUE,
+          legend = "right")
+```
+
+I used ggarrange to create this plot. I found information about it [here](http://www.sthda.com/english/articles/24-ggpubr-publication-ready-plots/81-ggplot2-easy-way-to-mix-multiple-graphs-on-the-same-page/#:~:text=The%20function%20ggarrange()%20%5Bin%20ggpubr%5D%20provides%20a%20convenient%20solution,a%20list%20of%20arranged%20ggplots.).
+
+I looked at the number of people per house hold to see if there was a trend between the number of avocados bought and the number of people living together. I thought if the purchasing of avocados would preventing people from buying houses then the density of houses would be higher because people would have to move in with their parents to afford their avocados. The second trend I looked for was between median house price and avocados sold. I thought this could offer an alternative explanation to the avocados theory. I thought people who can afford to live in expensive house holds can afford more avocados. There is no clear trend between in either graph. Both cases San Diego had a small large ratio of x to y value and Los Angeles has a low ratio of x to y values.
