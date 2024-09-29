@@ -1,0 +1,4683 @@
+---
+title: "Machine Learning"
+format: html
+editor: visual
+---
+
+# 1 : introduction to machine learning
+
+## 1.1 introduction to machine learning
+
+### Notation
+
+**Features (X**~p~): variables used to predict outcomes
+
+-   also known as
+
+    1.  predictors
+    2.  covariates
+
+**Outcome (Y)**: the categorical or continuous variables we are trying to predict
+
+**Algorithms:** Takes features as inputs and predicts outcomes when we don't know the outcome.
+
+Machine learning programs train algorithms using known outcomes and features to predict unknown outcomes.
+
+**2 types of prediction algorithms**
+
+1.  continuous
+2.  categorical
+    -   can be any of K variables
+
+        -   K categories are indicated with indices (1, 2, 3..., k)
+
+        -   for binary data k = 0 or 1
+
+**Example:**
+
+outcome Y with 5 features (X~1~, ..., X~5~)
+
+-   **Prediction**: when the output is continuous we refer to the machine learning task as continuous.
+
+    -   A functions is the main output of the model
+
+        $$
+        y=f(x1,x2,…,xp)
+        $$
+
+    -   We want Y hat (predicted) to match y actual (the observed outcome).
+
+    -   **error =** y - Yhat
+
+-   **Classification**: when the output is categorical the machine learning task is categorical.
+
+    -   the output is a decision rule which will determine which of th K classes we should predict.
+
+    -   $$
+        f1(x1,x2,…,xp)>C -> category 1
+        $$
+
+        -   and category 0 for \<\_
+
+### Zip code reader example:
+
+**Purpose:** Build a algorithm that can read a digit.
+
+Steps to building an algorithm:
+
+1.  Understand the Outcome and Features.
+    -   For the zip code reader a set of digits read by a human and assigned an outcome Y is use
+
+        -   this is known as a **Training Set**
+
+        -   **Y** is the assigned outcome by the human.
+
+# 2 Machine Learning Basics
+
+-   uses caret package and dslabs
+
+```{r}
+library(caret)
+library(tidyverse)
+library(dslabs)
+data(heights)
+```
+
+## 2.1 Basics of evaluating machine learning algorithms
+
+**Example: Predicting Sex with height. hey shorty**
+
+-   predictor: height - this is a feature
+
+-   categorical outcome: sex --- non-cont either male or female
+
+It is intuitive to guess sex purely based on height will not be very accurate. because male and female heights are not that different within group variability.
+
+-   how can we quantitativly compare the prediction method based on heights with other algorithms with different features.
+
+    -   this is done with a **Training set**: used to train the algorithm, and a **test set:** used to evaluate
+
+        -   Both sets have known Ys but we pretend not to know the outcomes for the test set
+
+**How to create a test set with the caret package**
+
+use datapartition( ) function in caret
+
+-   times argument tells the function how many samples of indices to return
+
+-   p - tells the function what portion of the data to partition
+
+-   list - tells the function if it should return the result as a list or not
+
+```{r}
+
+# define the outcomes and the predictors
+y <- heights$sex
+x <- heights$height
+
+#create the training set and the test set
+set.seed(2007)
+test_index <- caret::createDataPartition(y, times = 1, p = 0.5, list = FALSE)
+test_set <- heights[test_index, ]
+train_set <- heights[-test_index, ]
+
+```
+
+**Over all accuracy:**
+
+-   For categorical outcome report the number correct prediction and the total number of data points.
+
+### building two algorithms for comparison
+
+1.  guessing the outcome - completely ignore the predictor and just guess the sex.
+2.  Use height - create a algorithm that predicts male **IF** the height is within 2 stdev of the average male height
+    -   if height \>62 predict male
+
+```{r}
+# Randomly pick male or female
+y_hat <- sample(c("Male", "Female"), length(test_index), replace = TRUE) |> 
+  factor(levels = levels(test_set$sex))
+#calculate overall accuracey 
+mean(y_hat == test_set$sex)
+
+# compare heights in males and females in our data set
+heights |> group_by(sex) |> summarize(mean(height), sd(height))
+
+h <- 69.3 - 2 * 3.6
+
+# now try predicting "male" if the height is within 2 SD of the average male
+
+y_hat <- if_else(x > h, "Male", "Female") |> 
+  factor(levels(test_set$sex))
+
+#test for accuracy
+mean(y == y_hat)
+```
+
+**Over fitting:** Evaluating only on the training set can lead erroneous algorithm.
+
+-   for more complex approaches this can lead to over optimistic assessments of the algorithm.
+
+**Analyzing the accuracy of 10 different cutoffs.**
+
+```{r}
+cutoff <- seq(61, 70)
+
+#try the cut off heights using a model that predicts sex based on height.
+accuracy <- map_dbl(cutoff, function(x){
+  y_hat <- ifelse(train_set$height > x, "Male", "Female") %>% 
+    factor(levels = levels(test_set$sex))
+  mean(y_hat == train_set$sex)
+})
+
+#find the maximunm accuracy obtained with the different cutoffs. 
+max(accuracy)
+
+# find the cut off for the max accuracy
+best_cutoff <- cutoff[which.max(accuracy)]
+best_cutoff
+
+# test the cutoff 
+y_hat <- ifelse(test_set$height > best_cutoff, "Male", "Female") |> 
+  factor(levels = levels(heights$sex))
+mean(y_hat == test_set$sex)
+```
+
+### Confusion matrix
+
+**Overall accuracy can be misleading:** in the height gender example the cutoff of 64 is close to the average height of women. if we look at the accuracy for predicting male compared to female (in the code below) we see that the accuracy for women is about 0.4 but 0.92 for men. This is because the data set was provided by data sciences classes that were biased towards males.
+
+-   algorithms that predict categorical variables based purely on prominence are not good methods despite what overall accuracy might be.
+
+\<-- --\>
+
+-   because the data is biased the algorithm is biased.
+
+    -   the male accuracy brings up the overall accuracy.
+    -   **This is over fitting ~I think~**
+
+**Confusion Matrix:** A tabulated combination of predicted and actual value.
+
+-   useful for seeing accuracy by category.
+
+```{r}
+# confusion matrix
+table(predicted = y_hat, actual = test_set$sex)
+
+# accuracy by sex
+test_set |> 
+  mutate(y_hat = y_hat) |> 
+  group_by(sex) |> 
+  summarize(mean(y_hat == sex))
+
+#prevelence
+prev <- mean(y == "Male")
+prev
+#confusion matrix
+confusionMatrix(data = y_hat, reference = test_set$sex)
+```
+
+### 
+
+### Sensitivity, Specificity and Prevalence
+
+Specificity and Sensitivity are defined for binary outcomes.\
+They are good metric to look at in addition to overall accuracy.
+
+-   for categorical out comes specificity and sensitivity can be defined per category.
+
+Y = 1 is a positive outcome
+
+-   $\hat Y = ~1$ is a [predicted]{.underline} postive outcome
+
+Y = 0 is a negative outcome
+
+$\hat Y = ~1$ is a [predicted]{.underline} negative out come
+
+**Sensitivity:** Probability that Y = 1 when Y hat = 1
+
+-   Sensitivity = 1 for algorithms that always have a positive out come
+
+**Specificity:** Probability that Y = 0 when Y hat = 0
+
+\
+confusion matrix
+
+![](images/Screen%20Shot%202024-01-21%20at%206.14.43%20PM.png){width="451"}
+
+-   **TPR (true positive rate) aka Recall:** A metric for specificity $TPR = TP/(TP + FN)$
+
+-   **Specificity AKA True Negative Rate (TNR) :** $TN/(TN +FP)$
+
+    -   **Precision aka Positive Predictive Value (PPV):** $TP / (TP + FP)$
+
+        -   PPV is another measurement of specificity. It is proportion of predicted positives that were actually positive.
+
+cheat sheet for terms
+
+![](images/Screen%20Shot%202024-01-21%20at%206.14.43%20PM-01.png){width="448"}
+
+**ConfusionMatrix( )** function from caret package that computes TPR TNR and PPV
+
+-   factors are expected as inputs
+
+    -   the first level is defaulted as the positive
+
+        -   in general example female = 1 = positive because f comes alphabetically before m.
+
+```{r}
+cm <- confusionMatrix(data = y_hat, reference = test_set$sex) 
+cm
+```
+
+### Balance Accuracy and F1 score
+
+**F1 score:** harmonic average of specificity and sensitivity.
+
+-   This is the generally accepted as the one number summary for the accuracy of a algorithm.
+
+    -   $1 / [1/2 * (1/recall + 1/percision)]$
+
+    -   
+
+-   you can bias the F1 score to favor specificity or sensitivity, depending on which is more important for an application with a beta value.
+
+    -   ![](images/Screen%20Shot%202024-01-21%20at%207.02.39%20PM.png){width="247"}
+
+**Rebuild the algorithm for a maximum F score**
+
+```{r}
+cutoff <- seq(61, 70) # values to iterate through for finding the F1 scores
+
+F1_score <- map_dbl(cutoff, function(x) {
+  y_hat <- ifelse(train_set$height > x, "Male", "Female") |> 
+    factor(levels(train_set$sex))
+  F_meas(data = y_hat, reference = factor(train_set$sex))
+})
+
+tibble(F1_score, cutoff) |> 
+  ggplot(aes(cutoff,F1_score)) +
+  geom_point() + 
+  geom_line()
+
+max(F1_score)
+
+best_cutoff2 <- cutoff[which.max(F1_score)]
+
+y_hat <- if_else(test_set$height > best_cutoff2, "Male", "Female") |> 
+  factor(levels = levels(test_set$sex))
+
+sensitivity(y_hat, reference = test_set$sex)
+specificity(y_hat, reference = test_set$sex)
+```
+
+### Prevalence Matters in practice.
+
+when the prevalence in close to 0 or 1 the algorithm may not work
+
+In a example of developing a algorithm for a rare disease. the specificity is high, but the in the data set it\
+predicts that 1/2 of the training set has the disease Pr(Y\^ = 1) = 0.5.
+
+-   The doctor is truly concerned about the Pr(Y = 1 \| Y\^ = 1). this can be found by Bayes theorem.
+
+    -   ![](images/Screen%20Shot%202024-01-21%20at%207.59.23%20PM.png){width="379"}
+
+-   the disease is prevalent in 5 in 1,000 (PR(Y)) so Pr (Y = 1 \| Y\^ = 1) is 0.01
+
+### ROC and precision recall curves
+
+We can get higher sensitivity through guessing by changing how often we guess male.\
+How do we know that the cutoff method is better?
+
+**Recieving Operator Characteristic (ROC) curve**
+
+compares to methods for getting Y\^.\
+Y axis = sensitivity - True Positive Rate\
+x axis = 1 - specificity False Positive rate
+
+creating data for diff probabilities of guessing male
+
+```{r}
+probs <- seq(0, 1, length.out = 10)
+guessing <- map_df(probs, function(p){
+  y_hat <- 
+    sample(c("Male", "Female"), n, replace = TRUE, prob=c(p, 1-p)) %>% 
+    factor(levels = c("Female", "Male"))
+  list(method = "Guessing",
+       FPR = 1 - specificity(y_hat, test_set$sex),
+       TPR = sensitivity(y_hat, test_set$sex))
+})
+guessing %>% qplot(FPR, TPR, data =., xlab = "1 - Specificity", ylab = "Sensitivity")
+```
+
+```{r}
+p <- 0.9
+n <- length(test_index)
+y_hat <- sample(c("Male", "Female"), n, replace = TRUE, prob=c(p, 1-p)) %>% 
+  factor(levels = levels(test_set$sex))
+mean(y_hat == test_set$sex)
+
+    # ROC curve
+
+#generate data for guessing
+probs <- seq(0, 1, length.out = 10)
+guessing <- map_df(probs, function(p){
+  y_hat <- 
+    sample(c("Male", "Female"), n, replace = TRUE, prob=c(p, 1-p)) %>% 
+    factor(levels = c("Female", "Male"))
+  list(method = "Guessing",
+       FPR = 1 - specificity(y_hat, test_set$sex),
+       TPR = sensitivity(y_hat, test_set$sex))
+})
+guessing %>% qplot(FPR, TPR, data =., xlab = "1 - Specificity", ylab = "Sensitivity")
+
+#generate data for F score
+cutoffs <- c(50, seq(60, 75), 80)
+height_cutoff <- map_df(cutoffs, function(x){
+  y_hat <- ifelse(test_set$height > x, "Male", "Female") %>% 
+    factor(levels = c("Female", "Male"))
+   list(method = "Height cutoff",
+        FPR = 1-specificity(y_hat, test_set$sex),
+        TPR = sensitivity(y_hat, test_set$sex))
+})
+
+# plot both curves together
+bind_rows(guessing, height_cutoff) %>%
+  ggplot(aes(FPR, TPR, color = method)) +
+  geom_line() +
+  geom_point() +
+  xlab("1 - Specificity") +
+  ylab("Sensitivity")
+
+library(ggrepel)
+map_df(cutoffs, function(x){
+  y_hat <- ifelse(test_set$height > x, "Male", "Female") %>% 
+    factor(levels = c("Female", "Male"))
+   list(method = "Height cutoff",
+        cutoff = x, 
+        FPR = 1-specificity(y_hat, test_set$sex),
+        TPR = sensitivity(y_hat, test_set$sex))
+}) %>%
+  ggplot(aes(FPR, TPR, label = cutoff)) +
+  geom_line() +
+  geom_point() +
+  geom_text_repel(nudge_x = 0.01, nudge_y = -0.01)
+```
+
+**Precision Recall Curve**
+
+this is a better plot for comparing methods when prevalence matters.\
+y axis = precision TPR\
+x axis = recall - positive predicted value
+
+```{r}
+# plot precision against recall
+guessing <- map_df(probs, function(p){
+  y_hat <- sample(c("Male", "Female"), length(test_index), 
+                  replace = TRUE, prob=c(p, 1-p)) %>% 
+    factor(levels = c("Female", "Male"))
+  list(method = "Guess",
+    recall = sensitivity(y_hat, test_set$sex),
+    precision = precision(y_hat, test_set$sex))
+})
+
+height_cutoff <- map_df(cutoffs, function(x){
+  y_hat <- ifelse(test_set$height > x, "Male", "Female") %>% 
+    factor(levels = c("Female", "Male"))
+  list(method = "Height cutoff",
+       recall = sensitivity(y_hat, test_set$sex),
+    precision = precision(y_hat, test_set$sex))
+})
+
+bind_rows(guessing, height_cutoff) %>%
+  ggplot(aes(recall, precision, color = method)) +
+  geom_line() +
+  geom_point()
+guessing <- map_df(probs, function(p){
+  y_hat <- sample(c("Male", "Female"), length(test_index), replace = TRUE, 
+                  prob=c(p, 1-p)) %>% 
+    factor(levels = c("Male", "Female"))
+  list(method = "Guess",
+    recall = sensitivity(y_hat, relevel(test_set$sex, "Male", "Female")),
+    precision = precision(y_hat, relevel(test_set$sex, "Male", "Female")))
+})
+
+height_cutoff <- map_df(cutoffs, function(x){
+  y_hat <- ifelse(test_set$height > x, "Male", "Female") %>% 
+    factor(levels = c("Male", "Female"))
+  list(method = "Height cutoff",
+       recall = sensitivity(y_hat, relevel(test_set$sex, "Male", "Female")),
+    precision = precision(y_hat, relevel(test_set$sex, "Male", "Female")))
+})
+bind_rows(guessing, height_cutoff) %>%
+  ggplot(aes(recall, precision, color = method)) +
+  geom_line() +
+  geom_point()
+```
+
+### Loss Function
+
+The Loss function is used to determine which is the best is to define the Loss Function
+
+-   loss function applies to continuous and categorical
+
+**Squared Loss Function**: the most commonly used loss function
+
+$$
+(\hat Y - Y)^2
+$$
+
+**Mean Squared Error:** Used for many observations
+
+![](images/Screen%20Shot%202024-01-21%20at%208.46.42%20PM.png){width="350"}
+
+### Quiz for section 2.1
+
+```{r}
+library(dslabs)
+library(dplyr)
+library(lubridate)
+data(reported_heights)
+
+dat <- mutate(reported_heights, date_time = ymd_hms(time_stamp)) %>%
+  filter(date_time >= make_date(2016, 01, 25) & date_time < make_date(2016, 02, 1)) %>%
+  mutate(type = ifelse(day(date_time) == 25 & hour(date_time) == 8 & between(minute(date_time), 15, 30), "inclass","online")) %>%
+  select(sex, type)
+
+y <- factor(dat$sex, c("Female", "Male"))
+x <- dat$type
+
+
+
+tibble(x,y) |>  filter(x =="inclass") |> summarise( y = mean(y=="Female"))
+tibble(x,y) |> filter(x =="online") |> summarise(mean(y == "Female"))
+```
+
+```{r}
+yhat <- ifelse(x == "inclass", "Female", "Male") |> 
+  factor(levels = levels(y))
+
+mean(yhat == y)
+
+table(yhat, y)
+sensitivity(yhat, y)
+specificity(yhat, y)
+
+dat |> summarise(mean(sex == "Female"))
+```
+
+```{r}
+library(caret)
+data(iris)
+iris <- iris[-which(iris$Species=='setosa'),]
+y <- iris$Species
+```
+
+```{r}
+set.seed(76)
+test_index <- createDataPartition(y, times = 1, p = 0.5, list = FALSE)
+test <- iris[test_index,]
+train <- iris[-test_index,]
+
+test |> summarize_if(is.numeric, list(range))
+
+cutoff <- seq(4.9, 7.9, 0.1)
+accuracy <- map_dbl(cutoff, function(x){
+  y_hat <- ifelse(test$Sepal.Length > x, "virginica", "versicolor") %>% 
+    factor(levels = levels(test$Species))
+  mean(y_hat == test$Species)
+})
+tibble(cutoff, accuracy) |> slice_max(accuracy)
+
+cutoff <- seq(2.2, 3.8, 0.1)
+accuracy <- map_dbl(cutoff, function(x){
+  y_hat <- ifelse(test$Sepal.Width > x, "virginica", "versicolor") %>% 
+    factor(levels = levels(test$Species))
+  mean(y_hat == test$Species)
+})
+tibble(cutoff, accuracy) |> slice_max(accuracy)
+
+cutoff <- seq(3.3, 6.9, 0.1)
+accuracy <- map_dbl(cutoff, function(x){
+  y_hat <- ifelse(train$Petal.Length > x, "virginica", "versicolor") %>% 
+    factor(levels = levels(test$Species))
+  mean(y_hat == train$Species)
+})
+tibble(cutoff, accuracy) |> slice_max(accuracy)
+
+cutoff <- seq(1.0, 2.5, 0.1)
+accuracy <- map_dbl(cutoff, function(x){
+  y_hat <- ifelse(train$Petal.Width > x, "virginica", "versicolor") %>% 
+    factor(levels = levels(train$Species))
+  mean(y_hat == train$Species)
+})
+tibble(cutoff, accuracy) |> slice_max(accuracy)
+
+
+### code from the answer key
+
+foo <- function(x){
+	rangedValues <- seq(range(x)[1], range(x)[2], by=0.1)
+	sapply(rangedValues, function(i){
+		y_hat <- ifelse(x>i, 'virginica', 'versicolor')
+		mean(y_hat==train$Species)
+	})
+}
+predictions <- apply(train[,-5], 2, foo)
+sapply(predictions, max)
+
+
+
+#apply to test set
+yhat <- ifelse(test$Petal.Width > 1.6, 'virginica', 'versicolor')
+mean(yhat == test$Species)
+
+
+# code from the answer key
+predictions <- foo(train[,4])
+rangedValues <- seq(range(train[,4])[1], range(train[,4])[2], by=0.1)
+cutoffs <-rangedValues[which(predictions==max(predictions))]
+
+y_hat <- ifelse(test[,4]>cutoffs[1], 'virginica', 'versicolor')
+mean(y_hat==test$Species)
+```
+
+apply cutoff for petal width and get the overall accuracy
+
+```{r}
+plot(iris, pch=21, bg=iris$Species)
+```
+
+```{r}
+foo <- function(x){
+  rangedValues <- seq(range(x)[1], range(x)[2], 0.1)
+  sapply(rangedValues, function(i) {
+    y_hat <- ifelse(x>i, 'virginica', 'versicolor')
+    mean(y_hat == train$Species)
+  })
+}
+
+predictions <- apply(train[,-5], 2, foo)
+sapply(predictions, max)
+
+predictions <- foo(train[,3])
+rangedValues <- seq(range(train[,3])[1], range(train[,3])[2], 0.1)
+
+rangedValues[which.max(predictions)]
+
+y_hat <- ifelse(test$Petal.Width > 1.5 & test$Petal.Length > 4.6, 
+                'virginica', 'versicolor')
+mean(y_hat == test$Species)
+```
+
+## Conditional Probabilities:
+
+### Conditional probabilities:
+
+The probability of Y = x (the outcome being x) given the values of the predictors.
+
+-   Basically given the context what is the probability
+
+-   this is necessary because algorithm are never perfect. a data set can have different values for the same predictors. the condititional pronability helps us understand given the predictors are a given value what is the probability of the algorithm being correct.
+
+    -   example: in the sex/heights data set
+
+-   notation for conditional probability
+
+    -   $$
+        Pr(Y=k∣X1=x1,…,Xp=xp),fork=1,…,K
+        $$
+
+-   notation for categorical conditional probability of class k given the predictors
+
+    -   $$
+        pk(x)=Pr(Y=k∣X=x),fork=1,…,K
+        $$
+
+#### guidance for the algorithm:
+
+The algorithm will predict the class (k) with the highest probability $p1(x),p2(x),…pK(x).$ This is known as Bayes' rule in machine learning.
+
+-   notation
+
+    -   $$
+        \hat Y=max_kp_k(x)
+        $$
+
+-   **this is only theoretical**
+
+    -   in practice we do not know the p~k~(x). the better our probability estimates the better are algorithm.
+
+The prediction depends on two thins
+
+1.  how close to $\hat Y=max_kp_k(x)$ we are from 0 to 1.
+
+2.  how close the estimate $\hat p(x)$ is to $p(x)$
+
+    Nothing can be done about the first so all resources go into optimizing the second. The circumstances of 1st are determining in how successful of a model we can make. It is easier to make a digit reader than a movie suggester.
+
+### Conditional expectations.
+
+$$E(Y | X =x) = P(Y =1 | X=x) $$This is true for binary data. the probability that Y = 1 given X = x is the same as the average of\
+y~1~, ..., y~n~ which is the the expectation.\
+so we can use expectation to communicate the conditional expectation and the conditional probability\
+the same observed predictors do not guarantee the same outcome for continuous variables either.
+
+#### Conditional Expectation minimizes squared loss function MSE.
+
+The conditional expectation minimizes the $\hat Y~MSE$
+
+one of the main tasks of machine learning is using data estimate the conditional expectation with a function for a set of predictors **x** = (x~1~,..., x~p~).
+
+-   $$
+    f(x) = E(Y~|~X = x)
+    $$
+
+-   this gets complicated as the function can take many shapes, the function can be multidimensional and the number of predictors can be large.
+
+#### quiz
+
+```{r}
+(0.1*.98+0.85*0.02)
+```
+
+```{r}
+set.seed(1) 
+disease <- sample(c(0,1), size=1e6, replace=TRUE, prob=c(0.98,0.02))
+test <- rep(NA, 1e6)
+test[disease==0] <- sample(c(0,1), size=sum(disease==0), replace=TRUE, prob=c(0.90,0.10))
+test[disease==1] <- sample(c(0,1), size=sum(disease==1), replace=TRUE, prob=c(0.15, 0.85))
+# find p(+) 
+mean(test)
+#find(D|-)
+(0.15*0.02) / (0.15*0.02 + 0.9 * 0.98)
+mean(disease[test==0])
+
+#find(D|+)
+mean(disease[test == 1])
+mean(disease[test == 1]) / mean(disease)
+```
+
+We are now going to write code to compute conditional probabilities for being male in the `heights`dataset. Round the heights to the closest inch. Plot the estimated conditional probability\
+P(*x)* = P(male \| height = x) for each x
+
+```{r}
+library(dslabs)
+data("heights")
+heights |> 
+  mutate(height = round(height)) |> 
+  group_by(height) |> 
+  summarize(p = mean(sex == "Male")) %>%
+  qplot(height, p, data = .)
+
+ps <- seq(0, 1, 0.1)
+heights %>% 
+  mutate(g = cut(height, quantile(height, ps), include.lowest = TRUE)) %>%
+	group_by(g) %>%
+	summarize(p = mean(sex == "Male"), height = mean(height)) %>%
+	qplot(height, p, data =.)
+
+Sigma <- 9*matrix(c(1,0.5,0.5,1), 2, 2)
+dat <- MASS::mvrnorm(n = 10000, c(69, 69), Sigma) %>%
+	data.frame() %>% setNames(c("x", "y"))
+plot(dat)
+
+ps <- seq(0, 1, 0.1)
+dat %>% 
+	mutate(g = cut(x, quantile(x,ps), include.lowest = TRUE)) |> 
+  group_by(g) %>%
+	qplot(x, y, data =.)
+
+```
+
+# 3.1 Smoothing and Linear Regression for Prediction Overview
+
+```{r set_up}
+library(tidyverse)
+library(dslabs)
+
+```
+
+## 2 or 7 case study
+
+building a algorithm than predict if the written number is a 2 or 7
+
+there will be two predictors
+
+-   x1 = number of pixels in the top right quandrant\
+    x~2~ =number of pixels in the bottom right quadrant
+
+```{r}
+mnist_27$train |> ggplot(aes(x_1,x_2, color = y)) + geom_point()
+```
+
+#### linear regression algorithm
+
+$$
+p(x_1,x_2) = Pr(Y = 1 | X_1 = x_1, X_2 = x_2) = B_0 + B_1x_1 + B_1x_2
+$$
+
+```{r}
+fit <- mnist_27$train |> 
+  mutate(y = ifelse(y == 7 , 1 , 0)) %>%
+  lm(y ~ x_1 + x_2 , data = .)
+
+mnist_27$train |> 
+  mutate(y = ifelse(y == 7, 1, 0)) %>% # making out comes bivariant 1 or 2
+  lm(y ~ x_1 + x_2, data = .)
+```
+
+we can now build a decision rule base on $\hat p(x_1,x_2)$
+
+```{r}
+p_hat = predict(fit, newdata = mnist_27$train, type = "response")
+
+library(caret)
+p_hat <- predict(fit, newdata = mnist_27$test)
+y_hat <- factor(ifelse(p_hat > 0.5 , 7, 2))
+
+caret::confusionMatrix(y_hat, mnist_27$test$y)#$overall[["Accuracy"]]
+```
+
+##### review of using a linear model as an alogrithm
+
+we have a over all accuracy of 0.75 with a 0.77 sensitivity (true positive rate) and 0.72 specificity (true negative rate). the issue with the model is that we are creating a linear divider between our two out puts when the dividing line on the x1, x2 plane for 2 vs 7 is not linear.
+
+this is what out model looks like
+
+![](images/Screen%20Shot%202024-02-19%20at%208.44.21%20PM.png){width="336"}
+
+while this is the true conditional probability
+
+![](images/Screen%20Shot%202024-02-19%20at%208.45.44%20PM.png){width="263"}
+
+The issues are coceptual and practical. the lm will predict negative values when conceptually the value P(Y = 1) must be between 0 and 1.
+
+A generalized linear model (GLM) will keep keep the value between 0 and 1 via a logistic transformation.
+
+$$
+g(p) = \log \frac{p}{1-p}
+$$
+
+#### quiz
+
+```{r}
+library(tidyverse)
+library(caret)
+        
+set.seed(1)
+n <- 100
+Sigma <- 9*matrix(c(1.0, 0.5, 0.5, 1.0), 2, 2)
+dat <- MASS::mvrnorm(n = 100, c(69, 69), Sigma) %>%
+      data.frame() %>% setNames(c("x", "y"))
+```
+
+```{r}
+library(tidyverse)
+library(caret)
+        
+
+
+test_index <- caret::createDataPartition(dat$y, times = 1, p = 0.5, list = FALSE)
+test_set <- dat[test_index,] |> as_tibble()
+train_set <- dat[-test_index,] |> as_tibble()
+
+fit <- train_set %>% lm(y ~ x, data = .)
+
+y_hat <- predict(fit, newdata = test_set)
+tibble(mean(y_hat), sd(y_hat))
+```
+
+We will build 100 linear models using the data above and calculate the mean and standard deviation of the combined models. First, set the seed to 1 again. Then, within a `replicate()` loop,
+
+\(1\) partition the dataset into test and training sets with `p = 0.5` and using `dat$y` to generate your indices,
+
+\(2\) train a linear model predicting `y` from `x`,
+
+\(3\) generate predictions on the test set, and (4) calculate the RMSE of that model. Then, report the mean and standard deviation (SD) of the RMSEs from all 100 models.
+
+```{r}
+set.seed(1)
+n <- 100
+Sigma <- 9*matrix(c(1.0, 0.5, 0.5, 1.0), 2, 2)
+dat <- MASS::mvrnorm(n = 100, c(69, 69), Sigma) %>%
+      data.frame() %>% setNames(c("x", "y"))
+
+set.seed(1)
+
+# just within replicate 
+predict <- replicate(100, {
+  test_index <- caret::createDataPartition(dat$y, times = 1, p = 0.5,
+                                           list = FALSE)
+  test_set <- dat[test_index,] |> as_tibble()
+  train_set <- dat[-test_index,] |> as_tibble()
+  
+  fit <- train_set %>% lm(y ~ x, data = .)
+  
+  y_hat <- predict(fit, newdata = test_set)
+  sqrt(mean((y_hat - test_set$y)^2))
+  
+  # or this RMSE(test_set$y, y_hat)
+  
+})
+
+tibble(predict) |> summarize(mean(predict), sd(predict))
+
+
+```
+
+Now we will repeat the exercise above but using larger datasets. Write a function that takes a size `n`, then (1) builds a dataset using the code provided at the top of Q1 but with `n` observations instead of 100 and without the `set.seed(1)`, (2) runs the `replicate()` loop that you wrote to answer Q1, which builds 100 linear models and returns a vector of RMSEs, and (3) calculates the mean and standard deviation of the 100 RMSEs. 
+
+Set the seed to 1 and then use `sapply()` or `map()` to apply your new function to `n <- c(100, 500, 1000, 5000, 10000)`.
+
+```{r}
+set.seed(1)
+foo <- function(x) {
+n <- x
+Sigma <- 9*matrix(c(1.0, 0.5, 0.5, 1.0), 2, 2)
+dat <- MASS::mvrnorm(n, c(69, 69), Sigma) %>%
+      data.frame() %>% setNames(c("x", "y"))
+
+set.seed(1)
+
+# just within replicate 
+predict <- replicate(100, {
+  test_index <- caret::createDataPartition(dat$y, times = 1, p = 0.5,
+                                           list = FALSE)
+  test_set <- dat[test_index,] |> as_tibble()
+  train_set <- dat[-test_index,] |> as_tibble()
+  
+  fit <- train_set %>% lm(y ~ x, data = .)
+  
+  y_hat <- predict(fit, newdata = test_set)
+  sqrt(mean((y_hat - test_set$y)^2))
+  
+  # or this RMSE(test_set$y, y_hat)
+  
+})
+
+tibble(predict) |> summarize(mean(predict), sd(predict))
+}
+
+x <- c(100, 500, 1000, 5000, 10000)
+
+sapply(x,foo)
+
+
+# Text book answer
+set.seed(1)
+n <- c(100, 500, 1000, 5000, 10000)
+res <- sapply(n, function(n){
+	Sigma <- 9*matrix(c(1.0, 0.5, 0.5, 1.0), 2, 2)
+	dat <- MASS::mvrnorm(n, c(69, 69), Sigma) %>%
+		data.frame() %>% setNames(c("x", "y"))
+	rmse <- replicate(100, {
+		test_index <- createDataPartition(dat$y, times = 1, p = 0.5, list = FALSE)
+		train_set <- dat %>% slice(-test_index)
+		test_set <- dat %>% slice(test_index)
+		fit <- lm(y ~ x, data = train_set)
+		y_hat <- predict(fit, newdata = test_set)
+		sqrt(mean((y_hat-test_set$y)^2))
+	})
+	c(avg = mean(rmse), sd = sd(rmse))
+})
+
+res
+```
+
+Now repeat the exercise from Q1, this time making the correlation between `x` and `y` larger, as in the following code:
+
+```{r}
+set.seed(1)
+n <- 100
+Sigma <- 9*matrix(c(1.0, 0.95, 0.95, 1.0), 2, 2)
+dat <- MASS::mvrnorm(n = 100, c(69, 69), Sigma) %>%
+	data.frame() %>% setNames(c("x", "y"))
+
+set.seed(1)
+
+replicate(100, {
+  test_index <- createDataPartition(
+    dat$y, times = 1 , p = 0.5, list = FALSE
+    )
+  train_set <- dat[test_index,]
+  test_set <- dat[-test_index,]
+  fit <- train_set  %>% lm(y ~ x, data = .)
+  y_hat <- predict(fit, newdata = test_set)
+  RMSE(y_hat, test_set$y)
+  }) |> 
+  as_tibble() |> 
+  summarize(mean(value), sd(value))
+```
+
+Note that `y` is correlated with both `x_1` and `x_2` but the two predictors are independent of each other, as seen by `cor(dat)`.
+
+Set the seed to 1, then use the **caret** package to partition into test and training sets with `p = 0.5`. Compare the RMSE when using just `x_1`, just `x_2` and both `x_1` and `x_2`. Train a single linear model for each (not 100 like in the previous questions).
+
+Which of the three models performs the best (has the lowest RMSE)?
+
+```{r}
+set.seed(1)
+Sigma <- matrix(c(1.0, 0.75, 0.75, 0.75, 1.0, 0.25, 0.75, 0.25, 1.0), 3, 3)
+dat <- MASS::mvrnorm(n = 100, c(0, 0, 0), Sigma) %>%
+	data.frame() %>% setNames(c("y", "x_1", "x_2"))
+
+set.seed(1)
+test_index <- createDataPartition(dat$y, p = 0.5, list = FALSE)
+
+train_set <- dat[test_index,]
+test_set <- dat[test_index,]
+
+cor(dat)
+
+#using x_1 to predict y
+fit <- train_set %>% lm(y ~ x_1, .)
+y_hat <- predict(fit, new_data = test_set)
+RMSE(y_hat, test_set$y)
+
+#use x_2
+fit <- lm(y ~ x_2, data = train_set)
+y_hat <- predict(fit, new_data = test_set)
+RMSE(y_hat, test_set$y)
+
+#use x_1 and x_2 
+fit <- lm(y ~ x_1 + x_2, data = train_set)
+y_hat <- predict(fit, newdata = test_set)
+sqrt(mean((y_hat - test_set$y)^2))
+RMSE(y_hat, test_set$y)
+```
+
+Set the seed to 1, then use the **caret** package to partition into a test and training set of equal size. Compare the RMSE when using just `x_1`, just `x_2`, and both `x_1` and `x_2`. 
+
+Compare the results from Q6 and Q8. What can you conclude?
+
+```{r}
+set.seed(1)
+Sigma <- matrix(c(1.0, 0.75, 0.75, 0.75, 1.0, 0.95, 0.75, 0.95, 1.0), 3, 3)
+dat <- MASS::mvrnorm(n = 100, c(0, 0, 0), Sigma) %>%
+	data.frame() %>% setNames(c("y", "x_1", "x_2"))
+
+set.seed(1)
+test_index <- createDataPartition(dat$y, p = 0.5, list = FALSE)
+
+train_set <- dat[test_index,]
+test_set <- dat[test_index,]
+
+cor(dat)
+
+#using x_1 to predict y
+fit <- train_set %>% lm(y ~ x_1, .)
+y_hat <- predict(fit, new_data = test_set)
+RMSE(y_hat, test_set$y)
+
+#use x_2
+fit <- lm(y ~ x_2, data = train_set)
+y_hat <- predict(fit, new_data = test_set)
+RMSE(y_hat, test_set$y)
+
+#use x_1 and x_2 
+fit <- lm(y ~ x_1 + x_2, data = train_set)
+y_hat <- predict(fit, newdata = test_set)
+sqrt(mean((y_hat - test_set$y)^2))
+RMSE(y_hat, test_set$y)
+```
+
+## 3.2 Smoothing
+
+smoothing is a data technique that pulls trends out of noisy data.\
+it is literally making the data appear more smooth.\
+it is also known as curve fitting or low pass filtering.\
+it is done using the assumption that the data is smooth.
+
+conditional probabilities/expectations can be thought of as trends that we need to estimate in the presence of uncertainty.
+
+we will use the example of data from the popular vote poll margin (how much Obama is ahead or behind by) from the 2008 election
+
+### Bin smoothing
+
+stratify the data into groups that can be assumed to share an f(x) value.\
+we can do this if we assume that the data changes slowly, so f(x) is only constant in small windows of time.\
+we will assume that the data within a weeks time shares an expected value
+
+$$
+E[Y_i | X_i = x_i ] \approx \mu \mbox{   if   }  |x_i - x_0| \leq 3.5
+$$
+
+bin width - will be the size of the the strata. in this case we are setting it to 3.5 days (3.5 days greater than or less than the central day is included in the data).\
+
+```{r}
+## example of stratifying the data into 1 week increment ##
+
+# create the bins
+span <- 3.5 # the size of the box 7 days
+tmp <- polls_2008 %>%
+  crossing(center = polls_2008$day) %>%
+  mutate(dist = abs(day - center)) %>%
+  filter(dist <= span) 
+
+#plot the week average for day -125 and day -55
+tmp %>% filter(center %in% c(-125, -55)) %>% #takes a subset of the data
+  ggplot(aes(day, margin)) +   
+  geom_point(data = polls_2008, size = 3, alpha = 0.5, color = "grey") +
+  geom_point(size = 2) +    
+  geom_smooth(aes(group = center), 
+              method = "lm", formula = y ~ 1, se = FALSE) +
+  facet_wrap(~center)
+```
+
+The expectation value / estimate will be the average values within the window.\
+If we define that A~0~ as the set of indices *i*. such that $|x_i - x_0| \leq 3.5$ and N~0~ as the number of indexes in A~0~ .
+
+This is done for each day, calculating the mean of the values within a week.
+
+```{r}
+# larger span
+span <- 7 
+#using the function ksmooth to create the bins
+fit <- with(polls_2008, 
+            ksmooth(day, margin, kernel = "box", bandwidth = span))
+
+polls_2008 %>% mutate(smooth = fit$y) %>%
+  ggplot(aes(day, margin)) +
+  geom_point(size = 3, alpha = .5, color = "grey") + 
+  geom_line(aes(day, smooth), color="red")
+```
+
+Note the data is still wiggly.\
+The data can be smoothed by weighting the central day of the bin more heavily, instead of giving equal weight to all of the days.
+
+$$
+\hat{f}(x_0) = \sum_{i=1}^N w_0(x_i) Y_i
+$$
+
+each day is given a weight either 0 or 1/N~0~ with N~0~ being the number of points in the week.
+
+the function ksmooth with kernel = "normal", instead of "box" as it was above.
+
+```{r}
+# kernel
+span <- 7
+fit <- with(polls_2008, 
+            ksmooth(day, margin, kernel = "normal", bandwidth = span))
+
+polls_2008 %>% mutate(smooth = fit$y) %>%
+  ggplot(aes(day, margin)) +
+  geom_point(size = 3, alpha = .5, color = "grey") + 
+  geom_line(aes(day, smooth), color="red")
+```
+
+### Local Weighted Regression (loess)
+
+loess is an alternative smoothing method to bin smoothing, in which the window is not constant. Instead, the number of data points is constant.\
+Similar to bin smoothing a value is calculated for each data point (x~0~ through x~i~)
+
+Taylor's theorem: if you look closely at any function f(x) it will look like a line.
+
+\*\*instead of assuming the value is locally constant we are assuming the assume the function is locally linear.\
+Larger window sizes are considered as a result of the linear assumption.\
+instead of a 1 week window we consider a window where the trend is\
+approximately linear.
+
+$$
+\sum_{i=1}^N w_0(x_i) \left[Y_i - \left\{\beta_0 + \beta_1 (x_i-x_0)\right\}\right]^2
+$$
+
+**Application of loess**
+
+```{r}
+# application of loess
+total_days <- diff(range(polls_2008$day))
+span <- 21/total_days
+
+fit <- loess(margin ~ day, degree = 1, span = span, data = polls_2008)
+
+polls_2008 |> mutate(smooth = fit$fitted) |> 
+  ggplot(aes(day, margin)) +
+  geom_point() +
+  geom_line(aes(day, smooth), color = "red")
+
+# loesss within ggplot
+polls_2008 %>% ggplot(aes(day, margin)) +
+  geom_point() +
+  geom_smooth(color="red", span = 0.15, method = "loess", 
+              method.args = list(degree=1))
+```
+
+loess calculates a value for each x~0~ which is the fitted value at 0.
+
+the shape of the curve can be changed by changing the span.\
+the number of points used to calculate f(x~0~) = N \* span.
+
+![](images/Screen%20Shot%202024-03-18%20at%209.59.56%20PM.png)
+
+**Differences between loess and typical bin smoothing**
+
+1.  loess uses N\*span for the number of data points so the [window is not constant**.**]{.underline}
+2.  Tukey tri-weight is used to weight the data points in fitting the line locally.
+    -   ![](images/Screen%20Shot%202024-03-19%20at%207.52.14%20PM.png){width="347"}
+3.  option to fit the local model robustly. where after the line is plotted, outliers are identified and down weighted before a second iteration.
+
+### Beware of default smoothing parameters
+
+loess uses the default of a second degree polynomial. we need to to set it to 1 to estimate lines instead of parabolas.
+
+Taylor's theorem also states that any function can look like a parabola.
+
+```{r}
+# fitting with default vs. setting degree equal to 1. 
+total_days <- diff(range(polls_2008$day))
+span <- 28/total_days
+fit_1 <- loess(margin ~ day, degree=1, span = span, data = polls_2008)
+fit_2 <- loess(margin ~ day, span = span, data = polls_2008)
+
+# plotting the 2nd vs 1st degree polynomial fitting for loess. 
+polls_2008 %>% 
+  mutate(smooth_1 = fit_1$fitted, smooth_2 = fit_2$fitted) %>%
+   ggplot(aes(day, margin)) +
+   geom_point(size = 3, alpha = .5, color = "grey") +
+   geom_line(aes(day, smooth_1), color="red", lty = 2) +
+   geom_line(aes(day, smooth_2), color="orange", lty = 1)
+
+
+#using loess within geom_smooth
+polls_2008 %>% ggplot(aes(day, margin)) +
+   geom_point() +
+   geom_smooth(method = loess) +
+  geom_smooth(method = loess, method.args = list(degree = 1, span = 0.15),
+              color = "green")
+```
+
+## 3.4 connecting smoothing to machine learning
+
+Back to the exaple of 7 or 2.\
+Y = 1 if the number is 7 and Y = 0 if the number is 2.
+
+the conditional probability is
+
+$$
+p(x_1, x_2) = \mbox{Pr}(Y=1 \mid X_1=x_1 , X_2 = x_2)
+$$
+
+the 0s and 1s in this example are noisy and the linear model does not capture the non-linear nature of p(x~1~, x~2~).
+
+Linear regression fails for predicting when the Pr is not close to 0 or 1.\
+smoothing helps us more precisely predict if Y = 1 or 0
+
+### quiz
+
+data for the quiz
+
+```{r}
+library(tidyverse)
+library(lubridate)
+library(purrr)
+library(pdftools)
+    
+fn <- system.file("extdata", "RD-Mortality-Report_2015-18-180531.pdf", package="dslabs")
+dat <- map_df(str_split(pdf_text(fn), "\n"), function(s){
+	s <- str_trim(s)
+	header_index <- str_which(s, "2015")[1]
+	tmp <- str_split(s[header_index], "\\s+", simplify = TRUE)
+	month <- tmp[1]
+	header <- tmp[-1]
+	tail_index  <- str_which(s, "Total")
+	n <- str_count(s, "\\d+")
+	out <- c(1:header_index, which(n==1), which(n>=28), tail_index:length(s))
+	s[-out] %>%
+		str_remove_all("[^\\d\\s]") %>%
+		str_trim() %>%
+		str_split_fixed("\\s+", n = 6) %>%
+		.[,1:5] %>%
+		as_tibble() %>% 
+		setNames(c("day", header)) %>%
+		mutate(month = month,
+			day = as.numeric(day)) %>%
+		gather(year, deaths, -c(day, month)) %>%
+		mutate(deaths = as.numeric(deaths))
+}) %>%
+	mutate(month = recode(month, "JAN" = 1, "FEB" = 2, "MAR" = 3, "APR" = 4, "MAY" = 5, "JUN" = 6, 
+                          "JUL" = 7, "AGO" = 8, "SEP" = 9, "OCT" = 10, "NOV" = 11, "DEC" = 12)) %>%
+	mutate(date = make_date(year, month, day)) %>%
+        dplyr::filter(date <= "2018-05-01")
+
+```
+
+Use the `loess()` function to obtain a smooth estimate of the expected number of deaths as a function of date. Plot this resulting smooth function. Make the span about two months (60 days) long and use `degree = 1`.
+
+```{r}
+span <- 60/diff(range(as.numeric(dat$date)))
+
+fit <- dat |> filter(is.na(deaths) == FALSE) |> 
+  mutate(date = as.numeric(date)) %>%
+  loess(deaths ~ date, degree = 1, span = span, data = .)
+
+dat |> filter(is.na(deaths) == FALSE) |> 
+  mutate(smooth = predict(fit, as.numeric(date))) |> 
+  ggplot(aes(date, deaths)) +
+  geom_point() +
+  geom_line(aes(date, smooth), color = "red", lwd = 1.5)
+
+
+#fit_1 <- loess(margin ~ day, degree=1, span = span, data = polls_2008)
+```
+
+Work with the same data as in Q1 to plot smooth estimates against day of the year, all on the same plot, but with different colors for each year.
+
+Which code produces the desired plot?
+
+```{r}
+dat %>% 
+    mutate(smooth = predict(fit, as.numeric(date)), day = yday(date), year = as.character(year(date))) %>%
+    ggplot(aes(day, smooth, col = year)) +
+    geom_line(lwd = 2)
+```
+
+```{r}
+library(broom)
+mnist_27$train %>% glm(y ~ x_2, family = "binomial", data = .) %>% tidy()
+qplot(x_2, y, data = mnist_27$train)
+
+```
+
+```{r}
+mnist_27$train|> mutate(y = as.numeric(y))
+
+fit <- mnist_27$train |> mutate(y = as.numeric(y)) %>%
+  loess(y ~ x_2, degree = 1, data = .)
+y_hat <- predict(fit,mnist_27$test$x_2) |> round()
+
+replace_na(y_hat, 1)
+as.numeric(mnist_27$test$y)
+mean(as.numeric(mnist_27$test$y) == replace_na(y_hat,1)) # accuracy
+  
+# answer from key  
+train_dat <- mnist_27$train %>% 
+	mutate(y1 = ifelse(y=="7", 1, 0)) # numeric 1s or 0s instead of factor 2 or 7
+loess_fit <- loess(y1 ~ x_2, degree=1, data=train_dat)
+pred_val_test <- predict(loess_fit, newdata = mnist_27$test, type = "response")
+y1_hat_dat <- ifelse(pred_val_test > 0.5, "7", "2") %>% factor(levels = levels(mnist_27$test$y))
+confusionMatrix(y1_hat_dat, mnist_27$test$y)$overall[["Accuracy"]]
+
+
+## course answer
+train_dat <- mnist_27$train %>% 
+	mutate(y1 = ifelse(y=="7", 1, 0))
+loess_fit <- loess(y1 ~ x_2, degree=1, data=train_dat)
+pred_val_test <- predict(loess_fit, newdata = mnist_27$test, type = "response")
+y1_hat_dat <- ifelse(pred_val_test > 0.5, "7", "2") %>% factor(levels = levels(mnist_27$test$y))
+confusionMatrix(y1_hat_dat, mnist_27$test$y)$overall[["Accuracy"]]
+```
+
+# 4 Cross Validation and nearest K neighbor.
+
+goals of the nearest K neighbor section
+
+-   use the nearest K neighbor algorithm.
+
+-   understand the risks of overtraining and over smoothing
+
+-   utilize cross validation to reduce the true error and the apperant error
+
+### 4.1 k nearest neighbors (knn)
+
+plot the predictors and the y values
+
+```{r}
+library(tidyverse)
+library(dslabs)
+data("mnist_27")
+mnist_27$test |> ggplot(aes(x_1,x_2, color = y)) + geom_point()
+```
+
+the conditional probability will be predicted by:
+
+$$
+p(x_1, x_2) = \mbox{Pr}(Y=1 \mid X_1=x_1 , X_2 = x_2).
+$$
+
+k nearest neighbor (KNN) is similar to bin smoothing but is easier to apply to multidimensional situations.
+
+1.  define the distance between all observations based on the features.
+2.  to find the p(x1,x2) of a point x1,x2 and average the Y values.
+    -   this set of points is called the neighborhood.
+
+-   because of the connection between conditional probability and conditional expectation this average gives us $\hat p(x_1,x_2)$ .
+
+-   the flexibility of the model can be adjusted with the k parameter (the size of the neighborhood). Lager k values will result in smoother lines while smaller values will result in more wiggly lines.
+
+-   it takes the the out Y of the k nearest neighbors to build the algorithm
+
+**Call in the k nearest neighbor function.**
+
+The function is in the caret package, we will use knn3\
+we will use the first of two ways outlined in the help page to call the package.\
+This way specifies the function and the data set
+
+-   formula format: outcome \~ predictor_1 + predictor_2 + predictor_3
+
+-   Therefore, we would type `y ~ x_1 + x_2`
+
+-   if all of the parameters are use then y \~ . can be used.
+
+```{r}
+library(caret)
+#start with default k = 5
+knn_fit <- knn3(y ~ ., data = mnist_27$train, k = 5)
+
+```
+
+the data set is balanced so we care about sensitivity and specificity equally.\
+so we will quantify performance with accuracy (the average of $\hat Y = Y$
+
+predict function for knn will give probabilities. we will use the probability of being a seven as the estimate $\hat p(x_1, x_2)$
+
+```{r}
+y_hat_knn <- predict(knn_fit, mnist_27$test, type = "class")
+
+confusionMatrix(y_hat_knn, mnist_27$test$y)$overall["Accuracy"]
+```
+
+in section 27.8 we used linear regression to generate an estimate.
+
+```{r}
+fit_lm <- mnist_27$train |> 
+  mutate(y = ifelse(y == 7, 1, 0)) |> 
+  lm(y ~ x_1 + x_2, data = _)
+
+p_hat_lm <- predict(fit_lm, mnist_27$test)
+y_hat_lm <- factor(ifelse(p_hat_lm > 0.5, 7, 2))
+confusionMatrix(y_hat_lm, mnist_27$test$y)$overall["Accuracy"]
+```
+
+we can see that knn-5 has a higher accuracy compared to the linear regression model.
+
+we can plot the estimated conditional probability next to the true conditional probability.
+
+![](images/Screen%20Shot%202024-04-09%20at%209.36.10%20PM.png)
+
+we can see the the knn-5 estimate is relatively good approximation of the true conditional probability.
+
+we do see islands of blue in the read area. **This is due to over training**
+
+a key sign of over training is higher accuracy in the train set compared to the test set.
+
+```{r}
+y_hat_knn <- predict(knn_fit, mnist_27$train, type = "class")
+confusionMatrix(y_hat_knn, mnist_27$train$y)$overall["Accuracy"]
+
+y_hat_knn <- predict(knn_fit, mnist_27$test, type = "class")
+confusionMatrix(y_hat_knn, mnist_27$test$y)$overall["Accuracy"]
+```
+
+### 4.2 Over training
+
+prefect accuracy can be obtained if K = 1. But only in the training set\
+**Over training at its worst**
+
+-   this will use the y value for each (x1, x2)
+
+here we fit with K=1, we can see that the accuracy of the fit applied to the test is worse than the linear model.\
+
+```{r}
+knn_fit_1 <- knn3(y ~ ., data = mnist_27$train, k = 1)
+#knn_fit_1 <- knn3(y ~ ., data = mnist_27$train, k = 1)
+y_hat_knn_1 <- predict(knn_fit, mnist_27$train, type = "class")
+confusionMatrix(y_hat_knn_1, mnist_27$train$y)$overall["Accuracy"]
+
+## Applied to test set
+y_hat_knn_1 <- predict(knn_fit_1, mnist_27$test, type = "class")
+confusionMatrix(y_hat_knn_1, mnist_27$test$y)$overall["Accuracy"]
+```
+
+the over training problem is illustrated in this figure. (I think the black lines out line the are where the model will predict 7)
+
+![](images/Screen%20Shot%202024-04-09%20at%2010.18.44%20PM.png)
+
+we can see the decision bountry in the right graph makes many wrong decisions. It's like when your cheating off your neighbor on a mutilple choice test but the questions aren't the same.
+
+### 4.3 over smoothing:
+
+lets try k = 401 instead of k =5 from our examples
+
+```{r}
+knn_fit_401 <- knn3(y ~ ., data = mnist_27$train, k = 401)
+y_hat_knn_401 <- predict(knn_fit_401, mnist_27$test, type = "class")
+confusionMatrix(y_hat_knn_401, mnist_27$test$y)$overall["Accuracy"]
+```
+
+this turns out to be similar to regression.\
+too little flexibility does not permit moving.\
+this is called over-smoothing
+
+### 4.4 Picking the k in KNN
+
+an optimal K will maximize accuracy or minimize the expect MSE.
+
+the goal of cross validation is to set tuning parameters such as K.
+
+We need a special method.
+
+```{r}
+ks <- seq(3, 251, 2)
+```
+
+```{r}
+accuracy <- 
+  map_df(ks, function(k){
+  fit <- knn3(y ~ ., data = mnist_27$train, k = k)
+  
+  y_hat <- predict(fit, mnist_27$train, type = "class")
+  train_error <- confusionMatrix(
+    y_hat, mnist_27$train$y
+    )$overall["Accuracy"]
+  
+  y_hat <- predict(fit, mnist_27$test, type = "class")
+  test_error <- confusionMatrix(
+    y_hat, mnist_27$test$y
+    )$overall["Accuracy"]
+  
+  tibble(train = train_error, test = test_error)
+})
+
+ks[which.max(accuracy$test)]
+max(accuracy$test)
+```
+
+```{r}
+library(purrr)
+
+accuracy <- map_df(ks, function(k){
+  fit <- knn3(y ~ ., data = mnist_27$train, k = k)
+  
+  y_hat <- predict(fit, mnist_27$train, type = "class")
+  cm_train <- confusionMatrix(y_hat, mnist_27$train$y)
+  train_error <- cm_train$overall["Accuracy"]
+  
+  y_hat <- predict(fit, mnist_27$test, type = "class")
+  cm_test <- confusionMatrix(y_hat, mnist_27$test$y)
+  test_error <- cm_test$overall["Accuracy"]
+  
+  tibble(train = train_error, test = test_error)
+  })
+
+ks[which.max(accuracy$test)]
+max(accuracy$test)
+
+accuracy |> ggplot(aes(ks, test)) + 
+  geom_point(color = "blue") +
+  geom_point(aes(ks, train, color = "red"))
+```
+
+### Quiz
+
+Previously, we used logistic regression to predict sex based on height. Now we are going to use KNN to do the same. Set the seed to 1, then use the **caret** package to partition the **dslabs** `heights` data into a training and test set of equal size (`p = 0.5`). Use the `sapply()` function to perform KNN with `k` values of `seq(1, 101, 3)`on the training set and calculate F1 scores on the test set with the `F_meas()` function using the default value of the relevant argument.
+
+```{r}
+
+set.seed(1)
+dat <- dslabs::heights
+
+test_index <- createDataPartition(heights$sex, p = 0.5, list = F)
+train_set <- dat[test_index,]
+test_set <- dat[-test_index,]
+
+ks <- seq(1, 101, 3)
+accuracy <- purrr::map_df(ks, function(k){
+  fit <- knn3(sex ~ height, data = train_set, k = k)
+  
+  y_hat <- predict(fit, test_set, type = "class")
+  test_error <- 
+    confusionMatrix(y_hat, test_set$sex)$overall["Accuracy"]
+  tibble(test = test_error)
+})
+
+ks[which.max(accuracy$test)]
+max(accuracy)
+
+
+##data("heights")
+
+ set.seed(1) 
+test_index <- createDataPartition(heights$sex, times = 1, p = 0.5, list = FALSE)
+test_set <- heights[test_index, ]
+train_set <- heights[-test_index, ]     
+                
+ks <- seq(1, 101, 3)
+F_1 <- sapply(ks, function(k){
+	fit <- knn3(sex ~ height, data = train_set, k = k)
+	y_hat <- predict(fit, test_set, type = "class") %>% 
+		factor(levels = levels(train_set$sex))
+	F_meas(data = y_hat, reference = test_set$sex)
+})
+plot(ks, F_1)
+max(F_1)
+ks[which.max(F_1)]
+```
+
+```{r}
+library(dslabs)
+library(caret)
+data("tissue_gene_expression")
+```
+
+```{r}
+ set.seed(1)
+y <- tissue_gene_expression$y
+x <- tissue_gene_expression$x
+test_index <- createDataPartition(y, p = 0.5, list = FALSE)
+sapply(seq(1, 11, 2), function(k){
+	fit <- knn3(x[-test_index,], y[-test_index], k = k)
+	y_hat <- predict(fit, newdata = data.frame(x=x[test_index,]),
+				type = "class")
+mean(y_hat == y[test_index])
+})
+```
+
+## 4.2 Cross validation:
+
+### Mathematical explanation of cross validation.
+
+the goal of machine learning is to produce an algorithm which out puts Y_hat. that minimizes the difference of Y_hat and Y. \[true error\]
+
+$$
+\mbox{MSE} = \mbox{E}\left\{ \frac{1}{N}\sum_{i=1}^N (\hat{Y}_i - Y_i)^2 \right\}
+$$
+
+if only one data set is available, then the MSE can be estimated with the observed \[apperant error\] MSE like this:
+
+$$
+\hat{\mbox{MSE}} = \frac{1}{N}\sum_{i=1}^N (\hat{y}_i - y_i)^2
+$$
+
+**2 caviats of apparent error to remember**
+
+1.  because the data is random the error is a random variable. therefore two error could appear different due to luck.
+2.  if the apparent error is calculated based on the same data set used to train the model, then the estimate will be underestimated.
+
+Cross validation is the estimated true error found by taking the average error from B sets of data, none of which are used to train the algorithm.
+
+#### Kfold cross validation:
+
+Subset a section of the data 10-20% for testing and use the rest for training.
+
+once the data is subset, parameters need to be chosen. the set of parameters is referred to as λ.\
+to optimize λ we will use cross validations.
+
+for each set algorithm parameters being considered we want an estimate of the MSE and then we will choose the parameters with the smallest MSE. Cross validation provides this estimate.
+
+Fix the parameters λ before starting the cross validation.
+
+We will use $\hat{y}_i(λ)$  to denote the predictors obtained when we use parameters λ.
+
+$$
+\mbox{MSE}(\lambda) = \frac{1}{B} \sum{b=1}^B \frac{1}{N}\sum{i=1}^N \left(\hat{y}_i^b(\lambda) - y_ib\right)2 
+$$
+
+to imitate the definition of MSE above we want to use a data set that can be thought of as an independent random sample, and we want to do this several times.
+
+With Kfold cross validation we do it K times.
+
+1.  pick M obervatoins where $M = K/N$ at random. $y_1^b, \dots, y_M^b$ with b =1 (M is rounded to the whole number). we call this the validation set.
+
+2.  fit the model on the training set and compute the error on the independent set. $\hat{\mbox{MSE}}_b(\lambda) = \frac{1}{M}\sum_{i=1}^M \left(\hat{y}_i^b(\lambda) - y_i^b\right)^2$\
+    this is just one sample so the true error is noisy. which is the reason for taking K samples.\
+    the data set is split into K non-overlapping sets for Kfold cross validation.\
+    ![](images/Screen%20Shot%202024-04-27%20at%203.48.45%20PM.png){width="454"}
+
+3.  the process is repeated for sets $b = 1, … , b = K$ and $\hat{\mbox{MSE}}_1(\lambda),\dots, \hat{\mbox{MSE}}_K(\lambda)$ is obtained for each set
+
+4.  for the final estimate the average MSE form K sets is used $$
+     \hat{\mbox{MSE}}(\lambda) = \frac{1}{K} \sum_{b=1}^K \hat{\mbox{MSE}}_b(\lambda)
+    $$
+
+5.  final step is to select the $\lambda$ (the set of parameters) that minimizes the MSE esitmate.
+
+6.  we need to estimate the final model on data that was not used to optimize $\lambda$\
+    `predictions $\hat{y}$ for the data that was not used to optimize the $\lambda$ choice.`
+
+7.  we can so cross validation on the estimates as well.\
+    ![](images/Screen%20Shot%202024-04-27%20at%203.48.45%20PM-01.png){width="337"}
+
+    Our compute time gets multiplied by k.
+
+the final step of estimating with cross validation often takes a long time as it involves many complex operations.\
+to reduce time often times just 1 test is run.
+
+8.  Refit the model on the entire data set, without changing the parameters, and share it with others.
+
+**choosing K**:\
+K has a direct relation ship to computation time. a K of 100 will take 10 times longer than a K of 10,\
+K = 10 OR 5 are popular choices to keep computation times down.
+
+**Improve Variance** by using K different sets. it no longer matters that they are non-overlapping sets.\
+this is boot strapping or is related to boot strapping. I am not sure yet.
+
+### Exercises:
+
+create a randomized set of predictors and outcomes.
+
+```{r}
+set.seed(1996)
+n <- 1000
+p <- 10000
+x <- matrix(rnorm(n * p), n, p)
+colnames(x) <- paste("x", 1:ncol(x), sep = "_")
+y <- rbinom(n, 1, 0.5) |> factor()
+
+x_subset <- x[ , sample(p,100)]
+```
+
+**From chat GPT.**
+
+```{r}
+# Load required library
+library(caret)
+
+# Set seed
+set.seed(1996)
+
+# Number of folds for cross-validation
+num_folds <- 10  # You can adjust this as needed
+
+# Create a data frame with predictors (x_subset) and response variable (y)
+data <- data.frame(x_subset, y)
+
+# Define the control parameters for cross-validation
+ctrl <- trainControl(method = "cv",   # Use cross-validation
+                     number = num_folds,  # Number of folds
+                     verboseIter = TRUE)  # Print progress
+
+# Train the linear regression model using cross-validation
+lm_model <- train(y ~ .,            # Formula: response ~ predictors
+                  data = data,      # Training data
+                  method = "lm",    # Linear regression model
+                  trControl = ctrl) # Control parameters
+
+# Print the results
+print(lm_model)
+```
+
+Search for parameters that are most predictive of the outcome.
+
+comparison of the y =0 group to the y = 1 group will allow us to do this.
+
+```{r}
+devtools::install_bioc("genefilter")
+install.packages("genefilter")
+library(genefilter)
+tt <- colttests(x, y)
+```
+
+## 4.3 Boot strapping
+
+Boot strapping is using repeatedly sampling from a sample data set (with replacement).\
+the summary statistics is calculated as an average of the datasets.
+
+Code for population distribution.
+
+```{r}
+set.seed(1995)
+n <- 10^6
+income <- 10^(rnorm(n, log10(45000), log10(3)))
+qplot(log10(income), bins = 30, color = I("black"))
+```
+
+the population median
+
+```{r}
+m <- median(income)
+m
+```
+
+However, if we dont want to use the entire population we can use just the population median (m) using the sample median (M)
+
+```{r}
+N <- 100
+X <- sample(income, N) # take a sample of 100 obeservations from N. 
+median(X) 
+```
+
+constructing a confidence interval and determining the distribution of M
+
+the monte carlo distribution can be used because we are considering the entire population.
+
+```{r}
+library(gridExtra)
+B <- 10^4
+M <- replicate(B, {
+  X <- sample(income, N)
+  median(X)
+}) #replicate creating a sample and taking the median B times
+p1 <- qplot(M, bins = 30, color = I("black")) # create a histogram with for frequency of different medians
+p2 <- qplot(sample = scale(M), xlab = "theoretical", ylab = "sample") + 
+      geom_abline()
+grid.arrange(p1, p2, ncol = 2) # arange plots next to eachother. 
+
+```
+
+In a Q-Q plot like this, the `x` values represent the expected values from a theoretical distribution (in this case, a standard normal distribution), while the `y` values represent the actual values from the sample data (in this case, the simulated medians).
+
+By plotting the sample quantiles against the theoretical quantiles, the Q-Q plot shows how closely the sample data follows the theoretical distribution. If the points on the plot are close to a straight line, it suggests that the sample data follows the theoretical distribution fairly well. If the points deviate from the line, it indicates differences between the sample data and the theoretical distribution.
+
+**Constructing the confidence interval:** Because we know what the distribution looks like we can construct a confidence interval. Most of the time the distribution of the population is not known, so the central limit theorem is used.
+
+-   ***The central limit theorem is based around averages - this problem is considering the median***
+
+-   the confidence interval that would be constructed based on the CLT is very different compared to the confidence interval that would be constructed based on the distribution.
+
+CI based on CLT
+
+```{r}
+median(X) + 1.96 * sd(X) / sqrt(N)*c(-1,1)
+```
+
+CI based on the actual distribution of M
+
+```{r}
+quantile(M, c(0.25, 0.975))
+```
+
+Note that we can use ideas similar to those used in the bootstrap in cross-validation: instead of dividing the data into equal partitions, we can simply bootstrap many times.
+
+### **Comprehension Check: Bootstrap**
+
+previously sample(replace = TRUE) was used .\
+createResample function from the caret package. It out puts indexes similar to the creatDataPartition function.
+
+the createResample function can be used to create samples for boot strapping.
+
+```{r}
+library(dslabs)
+library(caret)
+
+data(mnist_27)
+
+set.seed(1995)
+
+indexes <- createResample(mnist_27$train$y, 10)
+
+### How many times do 3, 4, and 7 appear in the first resampled index?### 
+tibble(x = indexes$Resample01) |> mutate(x = as.factor(x)) |> count(x)
+
+
+```
+
+What is the total number of times that 3 appears in all of the resampled indexes?
+
+```{r}
+x = sapply(indexes, function(ind){
+  sum(ind == 3)
+  })
+sum(x)
+
+#another way to sum up all of the threes.
+as.tibble(indexes) |> unlist() |> table() %>% .[3]
+```
+
+A random dataset can be generated using: `y <- rnorm(100, 0, 1)`
+
+The 75th quantile, which we know is `qnorm(0.75)`, can be estimated with the sample quantile: `quantile(y, 0.75)`.
+
+Now, set the seed to 1 and perform a Monte Carlo simulation with 10,000 repetitions, generating the random dataset and estimating the 75th quantile each time. What is the expected value and standard error of the 75th quantile?
+
+Report all answers to at least 3 decimal digits.
+
+```{r}
+y <- rnorm(100, 0,1)
+quantile(y, 0.75)
+
+set.seed(1)
+
+x <- replicate(10^4, {
+  y <- rnorm(100, 0, 1)
+  quantile(y, 0.75)
+})
+
+tibble(x = x) |> summarize(
+  mean(x), 
+  standard_error = sd(x) # the standard error of a sample statistic is the standard deviation of the sample distribution or the sdev of the list of sample statistics.
+  )
+```
+
+In practice, we can't run a Monte Carlo simulation. Use the sample:
+
+Set the seed to 1 again after generating `y` and use 10,000 bootstrap samples to estimate the expected value and standard error of the 75th quantile.
+
+```{r}
+set.seed(1) 
+y <- rnorm(100, 0, 1)
+
+indexes <- createResample(y, 10000)
+indexes |> str()
+ind <- indexes[1] |> unlist()
+y[ind] %>% quantile(., 0.75)
+
+x <- sapply(seq(1, 10000), function(n){
+  ind <- indexes[n] |> unlist()
+ 
+  y[ind] %>%
+    quantile(., 0.75)
+})
+mean(x)
+sd(x)
+
+y[indexes[100],]
+
+```
+
+# 5 the caret package
+
+## **learning objectives:**
+
+1.  apply a verity of machine learning functions (loess and KNN) from the caret package.
+2.  use classifications decision trees.
+3.  apply random forests to address the short comings of decision tress.
+
+In the **Caret Package** section, you will learn how to use the `caret` package to implement many different machine learning algorithms
+
+## 5.1 caret package
+
+the caret package consolidates machine learning tools/methods into one package to provide consistency compared to having many packages with different authors for different methods.
+
+there are 237 different methods in the package -- summaries are found in the package manual.
+
+-   **Caret does not include the packages for all of the methods**. the library for each package must be loaded to use the method through caret.
+
+**Cross validation via caret** -- see examples below!!!
+
+we will look at the 2 or 7 problem in the examples (big surprise its been the example for the entire course)
+
+```{r set_up}
+library(tidyverse)
+library(caret)
+library(dslabs)
+data(mnist_27)
+```
+
+**Common syntax across methods thanks to caret package:\
+**train, predict and confusionMatrix can be used to build an algorithm, test is on a test set, and finally assess the accuracy for any of the methods in the caret package.
+
+-   train with the same syntax for different methods. universal tool. universal standard.
+
+    -   method = "method" syntax within the train function.
+
+```{r}
+library(caret)
+train_glm <- train(y ~ ., method = "glm", data = mnist_27$train)
+train_knn <- train(y ~ ., method = "knn", data = mnist_27$train)
+```
+
+-   predict function is used to apply all methods.
+
+```{r}
+y_hat_glm <- predict(train_glm, mnist_27$test, type = "raw")
+y_hat_knn <- predict(train_knn, mnist_27$test, type = "raw")
+```
+
+-   confusionMatrix function is used to assess the accuracy of the algorithm.
+
+```{r}
+confusionMatrix(y_hat_glm, mnist_27$test$y)$overall[["Accuracy"]]
+confusionMatrix(y_hat_knn, mnist_27$test$y)$overall[["Accuracy"]]
+```
+
+### Cross validation
+
+train auto does cross validations for a few parameters. which parameters are optimized are outlined in the `getModelInfo("knn")` or with a quick look up like this `modelLookup("knn")`
+
+ggplot to plot the train parameters vs. accuracy.
+
+-   default optimization takes 25 bootstrap samples of 25 % of the data for $k = 5, 7, 9$\
+    the tuneGrid parameter in the train function can change the defaults.
+
+    -   the grid of values must be supplied as a data frame and the parameter must be names as specified in the modelLookup.
+
+```{r}
+ggplot(train_knn, highlight = TRUE)
+```
+
+**Example**
+
+K nearest neighbor algorithm where K is optimized by assessing every other value from 9 to 71 as an option for K. assesment is completed by fitting the k Value to 25 bootstrap samples.
+
+-   **Relevant values:**
+
+    -   train_knn\$bestTune will reveal the k for maximized accuracy.
+
+        -   trainknn\$finalModel will give the best parameters for the highest accuracy k.
+
+```{r}
+set.seed(2008)
+
+train_knn <- train(y ~ .,
+                   method = "knn",
+                   data = mnist_27$train,
+                   tuneGrid = data.frame(k = seq(9, 67, 2)))
+
+ggplot(train_knn, highlight = TRUE)
+
+train_knn$bestTune 
+
+train_knn$finalModel
+```
+
+**Predict:**
+
+predict will apply the final model
+
+```{r}
+confusionMatrix(
+  predict(train_knn, mnist_27$test, type = "raw"),
+  mnist_27$test$y
+  )$overall[["Accuracy"]]
+```
+
+**Controlling cross validation:**
+
+in order to change the number of K(s) for Kfold cross validation to make it faster by reducing the value of K\
+`trainControl` function can be used.
+
+the following cold is a 10 fold cross validation, using 10% of the data each for testing and 90% for training.\
+method = "cv" specifies cross validation\
+number = 10 specifies the number of folds.
+
+the variation in accuracy between K values was greater for the new parameters. the variation can be seen by looking at the \$results of the trained model.
+
+```{r}
+control <- trainControl(method = "cv", number = 10, p = 0.9)
+
+train_knn_cv <- train(y ~ ., method = "knn",
+                      data = mnist_27$train,
+                      tuneGrid = data.frame(k = seq(9,71,2)),
+                      trControl = control)
+ggplot(train_knn_cv, highlight = TRUE)
+
+names(train_knn_cv$results)
+```
+
+if we look at the best KNN model it is now smooth. this is because knn model is like bin smoothing in it does not use a kernel which ads weights within a bin.
+
+```{r}
+plot_cond_prob <- function(p_hat=NULL){
+     tmp <- mnist_27$true_p
+     if(!is.null(p_hat)){
+          tmp <- mutate(tmp, p=p_hat)
+     }
+     tmp %>% ggplot(aes(x_1, x_2, z=p, fill=p)) +
+     geom_raster(show.legend = FALSE) +
+          scale_fill_gradientn(colors=c("#F8766D","white","#00BFC4")) +
+          stat_contour(breaks=c(0.5),color="black")
+}
+
+plot_cond_prob(predict(train_knn, mnist_27$true_p, type = "prob")[,2])
+```
+
+### Fitting with loess:
+
+loess within the caret package requires the gamLoess function from the gam package `install.packages("gam")`
+
+2 parameters need to be optimized ( span and degree) this info can be found by using `modelLookup` function.
+
+```{r}
+modelLookup("gamLoess")
+```
+
+```{r}
+grid <- expand.grid(span = seq(0.15, 0.65, len = 10), degree = 1)
+train_loess <- train(y ~ ., 
+                     method = "gamLoess", 
+                     tuneGrid = grid,
+                     data = mnist_27$train)
+ggplot(train_loess, highlight = TRUE)
+```
+
+the accuracy is similar to the KNN method. but produces a smoother estimate.
+
+```{r}
+confusionMatrix(data = predict(train_loess, mnist_27$test),
+                reference = mnist_27$test$y)$overall[["Accuracy"]]
+p1 <- plot_cond_prob(predict(train_loess, mnist_27$true_p, type = "prob")[,2])
+p1
+```
+
+### Excercises
+
+```{r}
+library(tidyverse)
+library(caret)
+        
+set.seed(1996)
+n <- 1000
+p <- 10000
+x <- matrix(rnorm(n*p), n, p)
+colnames(x) <- paste("x", 1:ncol(x), sep = "_")
+y <- rbinom(n, 1, 0.5) %>% factor()
+
+x_subset <- x[ ,sample(p, 100)]
+```
+
+```{r}
+set.seed(1)
+fit <- train(x_subset, y, method = "glm")
+fit$results
+```
+
+Now, instead of using a random selection of predictors, we are going to search for those that are most predictive of the outcome. We can do this by comparing the values for the `y = 1`group to those in the $y = 0$ group, for each predictor, using a t-test. We can perform this step like this:
+
+```{r}
+pvals <- rep(0, ncol(x))
+for (i in 1:ncol(x)) {
+  pvals[i] <- t.test(x[,i][y==0], x[,i][y==1], var.equal=TRUE)$p.value
+}
+
+
+ind <- which((pvals < 0.01))
+ind |> length()
+x_subset[, ind]
+x_subset <- as.tibble(x)[, ind]
+```
+
+Now set the seed to 1 and re-run the cross-validation after redefinining `x_subset` to be the subset of `x` defined by the columns showing "statistically significant" association with `y`.
+
+What is the accuracy now?
+
+```{r}
+
+train(y ~ ., data = as.tibble(x_subset)[ind,], method = "glm")
+```
+
+Set the seed to 1 and re-run the cross-validation again, but this time using kNN. Try out the following grid `k = seq(101, 301, 25)` of tuning parameters. Make a plot of the resulting accuracies.
+
+```{r}
+set.seed(1)
+train(
+  y ~ .,
+  data = x_subset,
+  method = "knn",
+  tuneGrid = data.frame(k = seq(101,301,25))
+)
+
+```
+
+In the previous exercises, we see that despite the fact that `x` and `y` are completely independent, we were able to predict `y` with accuracy higher than 70%. We must be doing something wrong then.
+
+### Trees and Random Forests
+
+tree based methods such as classification and regression trees are common methods aside from LOESS and KNN.
+
+-   trees and random forests allow for modeling systems with large numbers of predictors (p)
+
+-   LDA (linear regression?) and QDA (no clue, should go back and check notes later) become over loaded with calculations.
+
+-   LOESS and KNN are restricted by the **Curse of dimensionality** which leads to inflexible model due to making the neighborhood too large. dimension is refers to the distance between observation of y is in p demsional space. A large p causes the neighbor hood to expand quickly in order becuase if the span is set for 0.5% of the data it $\sqrt[p]{0.05}$
+
+-   A tree is a series of yes no decisions where a node is an outcome.
+
+-   Regression trees refer to continuos data
+
+-   Classification trees, or decision trees, use categorical data
+
+-   mathematically we are partitioning the data into j sections $R_1, R_2, \dots, R_j$. For any predictor $x_i$ that falls in $R_j$, estimate f(x)
+
+-   two parameters are used in partitioning the data, the **complexity parameter** (cp) and the **minimum number of observations. (**minsplit in rsplit package)
+
+-   Decision trees form predictions by calculating **which class is the most common** among the training set observations within the partition, rather than taking the average in each partition as with regression trees.
+
+-   decision trees form predictions by calculating whihc is the most common class among the training set observations within the partition, rather than taking the average in each partition as with regression trees.
+
+-   two common methods for choosing the partitions, the gini index and entropy.
+
+    -   $$
+        \text{Gini}(j) = \sum_{k=1}^K\hat{p}_{j,k}(1 - \hat{p}_{j,k})
+        $$
+
+    -   $$
+        \text{entropy}(j) = - \sum_{k=1}^K\hat{p}_{j,k}log(\hat{p}_{j,k}), \text{with } 0 \times \log(0) \text{defined as } 0
+        $$
+
+-   we can use step() in ggplot to visualize the firt of our model when only using 1 predictor.
+
+    -   we can use plot( ) or text( ) function to see the process of the tree when using one or multiple predictors
+
+-   Pros: Classification trees are highly interpretable and easy to visualize. They can model human decision processes and don't require use of dummy predictors for categorical variables.
+
+-   Cons: The approach via recursive partitioning can easily over-train and is therefore a bit harder to train than kNN. Furthermore, in terms of accuracy, it is rarely the best performing method since it is not very flexible and is highly unstable to changes in training data.
+
+-   **Random Forests:** Address some of the short comings by averaging multiple decision trees.
+
+    -   boot strap is utilized to ensure the tree averaged are not the same.
+
+    -   **Cons:** Interpretablity is lost.
+
+-   An approach that helps with interpretability is to examine **variable importance**. To define variable importance we **count how often a predictor is used in the individual trees**. The **`caret`** package includes the function **`varImp`** that extracts variable importance from any model in which the calculation is implemented. The concept of variable importance will be explored in more detail in Section 6.
+
+```{r}
+# Load tidyverse
+library(tidyverse)
+  
+# load package for decision tree
+library(rpart)
+
+# load the dslabs package
+library(dslabs)
+
+# fit a classification tree using the polls_2008 dataset, 
+# which contains only one predictor (day)
+# and the outcome (margin)
+fit <- rpart(margin ~ ., data = polls_2008)
+
+# display the decision tree
+plot(fit, margin = 0.1)
+text(fit, cex = 0.75)
+
+# examine the fit from the classification tree model
+polls_2008 %>%  
+  mutate(y_hat = predict(fit)) %>% 
+  ggplot() +
+  geom_point(aes(day, margin)) +
+  geom_step(aes(day, y_hat), col="red")
+
+# fit a classification tree on the mnist data using cross validation
+train_rpart <- train(y ~ .,
+              method = "rpart",
+              tuneGrid = data.frame(cp = seq(0.0, 0.1, len = 25)),
+              data = mnist_27$train)
+# and plot it
+plot(train_rpart)
+
+# compute accuracy
+confusionMatrix(predict(train_rpart, mnist_27$test), mnist_27$test$y)$overall["Accuracy"]
+
+# view the final decision tree
+plot(train_rpart$finalModel, margin = 0.1) # plot tree structure
+text(train_rpart$finalModel) # add text labels
+  
+# load library for random forest
+library(randomForest)
+train_rf <- randomForest(y ~ ., data=mnist_27$train)
+confusionMatrix(predict(train_rf, mnist_27$test), mnist_27$test$y)$overall["Accuracy"]
+
+# use cross validation to choose parameter
+train_rf_2 <- train(y ~ .,
+      method = "Rborist",
+      tuneGrid = data.frame(predFixed = 2, minNode = c(3, 50)),
+      data = mnist_27$train)
+confusionMatrix(predict(train_rf_2, mnist_27$test), mnist_27$test$y)$overall["Accuracy"]
+```
+
+```{r}
+library(rpart)
+n <- 1000
+sigma <- 0.25
+set.seed(1)
+x <- rnorm(n, 0, 1)
+y <- 0.75 * x + rnorm(n, 0, sigma)
+dat <- data.frame(x = x, y = y)
+```
+
+```{r}
+fit <- rpart(y ~ .,  data = dat)
+
+plot(fit, margin = 0.1)
+text(fit, cex = 0.75)
+
+dat %>% 
+	mutate(y_hat = predict(fit)) %>% 
+	ggplot() +
+	geom_point(aes(x, y)) +
+  geom_step(aes(x, y_hat), col=2)
+```
+
+```{r}
+library(randomForest)
+fit <- randomForest(y ~ ., data = dat)
+dat %>% 
+	mutate(y_hat = predict(fit)) %>% 
+	ggplot() +
+	geom_point(aes(x, y)) +
+	geom_step(aes(x, y_hat), col = "red")
+
+plot(fit)
+```
+
+It seems that the default values for the Random Forest result in an estimate that is too flexible (unsmooth). Re-run the Random Forest but this time with a node size of 50 and a maximum of 25 nodes. Remake the plot.
+
+```{r}
+library(randomForest)
+fit <- randomForest(y ~ x, data = dat, nodesize = 50, maxnodes = 25)
+dat %>% 
+	mutate(y_hat = predict(fit)) %>% 
+	ggplot() +
+	geom_point(aes(x, y)) +
+	geom_step(aes(x, y_hat), col = "red")
+```
+
+### Comphension check caret package
+
+Load the **rpart** package and then use the `caret::train()` function with `method = "rpart"` to fit a classification tree to the `tissue_gene_expression` dataset. Try out `cp` values of `seq(0, 0.1, 0.01)`. Plot the accuracies to report the results of the best model. Set the seed to 1991.
+
+Which value of `cp` gives the highest accuracy?
+
+```{r}
+dat <- as.data.frame(tissue_gene_expression)
+
+set.seed(1991)
+fit <- caret::train(y ~ ., data = dat, method = "rpart", 
+                    tuneGrid = data.frame(cp = seq(0, 0.1 ,0.01)))
+plot(fit)
+fit
+```
+
+Note that there are only 6 placentas in the dataset. By default, `rpart` requires 20 observations before splitting a node. That means that it is difficult to have a node in which placentas are the majority. Rerun the analysis you did in Q1 with `caret::train()`, but this time with `method = "rpart"` and allow it to split any node by using the argument `control = rpart.control(minsplit = 0)`. Look at the confusion matrix again to determine whether the accuracy increases. Again, set the seed to 1991.
+
+```{r}
+set.seed(1991)
+fit <- caret::train(y ~ ., data = dat, method = "rpart",
+      control = rpart.control(minsplit = 0),
+      tuneGrid = data.frame(cp = seq(0, 0.1, 0.01)))
+
+confusionMatrix(fit)
+```
+
+Plot the tree from the best fitting model of the analysis you ran in Q2.
+
+Which gene is at the first split?
+
+```{r}
+fit <- rpart(y ~ ., data = dat)
+plot(fit, margin = .1)
+text(fit, cex = 0.75)
+```
+
+We can see that with just seven genes, we are able to predict the tissue type. Now let's see if we can predict the tissue type with even fewer genes using a Random Forest. Use the `train()` function and the `rf` method to train a Random Forest model and save it to an object called `fit`. Try out values of `mtry` ranging from `seq(50, 200, 25)` (you can also explore other values on your own). What `mtry`value maximizes accuracy? To permit small `nodesize` to grow as we did with the classification trees, use the following argument: `nodesize = 1`.
+
+Note: This exercise will take some time to run. If you want to test out your code first, try using smaller values with `ntree`. Set the seed to 1991 again.
+
+What value of `mtry` maximizes accuracy?
+
+```{r}
+library(randomForest)
+set.seed(1991)
+fit <- train(y ~ ., method = "rf", data = dat, nodesize = 1,
+             tuneGrid = data.frame(mtry = seq(50, 200, 25))
+)
+
+confusionMatrix(fit)
+plot(fit)
+```
+
+## 5.2 Titanic exercises.
+
+### **Titanic Exercises**
+
+These exercises cover everything you have learned in this course so far. You will use the background information to provided to train a number of different types of models on this dataset.
+
+### **Background**
+
+The Titanic was a British ocean liner that struck an iceberg and sunk on its maiden voyage in 1912 from the United Kingdom to New York. More than 1,500 of the estimated 2,224 passengers and crew died in the accident, making this one of the largest maritime disasters ever outside of war. The ship carried a wide range of passengers of all ages and both genders, from luxury travelers in first-class to immigrants in the lower classes. However, not all passengers were equally likely to survive the accident. You will use real data about a selection of 891 passengers to predict which passengers survived.
+
+### **Libraries and data**
+
+Use the `titanic_train` data frame from the **titanic** library as the starting point for this project.
+
+```{r}
+library(titanic)    # loads titanic_train data frame
+library(caret)
+library(tidyverse)
+library(rpart)
+
+# 3 significant digits
+options(digits = 3)
+
+# clean the data - `titanic_train` is loaded with the titanic package
+titanic_clean <- titanic_train %>%
+    mutate(Survived = factor(Survived),
+           Embarked = factor(Embarked),
+           Age = ifelse(is.na(Age), median(Age, na.rm = TRUE), Age), # NA age to median age
+           FamilySize = SibSp + Parch + 1) %>%    # count family members
+    select(Survived,  Sex, Pclass, Age, Fare, SibSp, Parch, FamilySize, Embarked)
+
+```
+
+### Q 1
+
+Set the seed to 42, then use the **caret** package to create a 20% data partition based on the `Survived` column. Assign the 20% partition to `test_set` and the remaining 80% partition to `train_set`.
+
+```{r}
+set.seed(42)
+partition <- createDataPartition(titanic_clean$Survived, p = 0.2, list = FALSE)
+
+train_data <- titanic_clean[-partition,]
+test_data <- titanic_clean[partition,]
+
+mean((as.numeric(train_data$Survived) - 1))
+mean(train_data$Survived == 1)
+```
+
+### Q2
+
+The simplest prediction method is randomly guessing the outcome without using additional predictors. These methods will help us determine whether our machine learning algorithm performs better than chance. How accurate are two methods of guessing Titanic passenger survival?
+
+Set the seed to 3. For each individual in the test set, randomly guess whether that person survived or not by sampling from the vector `c(0,1)` (Note: use the default argument setting of `prob` from the `sample` function).
+
+What is the accuracy of this guessing method?
+
+```{r}
+set.seed(3)
+
+
+random_dat <- sample(c(0,1), replace = TRUE, size = length(test_data$Survived)) |> 
+  factor()
+
+mean(random_dat == test_data$Survived)
+```
+
+### Question 3a: Predicting survival by sex
+
+Use the training set to determine whether members of a given sex were more likely to survive or die.
+
+```{r}
+train_data |> group_by(Sex) |> 
+  summarise(mean(Survived == 1))
+```
+
+### Question 3b: Predicting survival by sex
+
+0.0/1.0 point (graded)
+
+Predict survival using sex on the test set: if the survival rate for a sex is over 0.5, predict survival for all individuals of that sex, and predict death if the survival rate for a sex is under 0.5.
+
+What is the accuracy of this sex-based prediction method on the test set?
+
+```{r}
+sex_model <- if_else(test_data$Sex == "male", 0 , 1) |> factor()
+#mean(y_hat == test_data$Survived)
+```
+
+### Question 4a: Predicting survival by passenger class
+
+0.0/1.0 point (graded)
+
+In the training set, which class(es) (`Pclass`) were passengers more likely to survive than die? Note that "more likely to survive than die" (probability \> 50%) is distinct from "equally likely to survive or die" (probability = 50%).
+
+Select ALL that apply.
+
+```{r}
+train_data |> group_by(Pclass) |> summarize(mean(Survived == 1))
+```
+
+### Question 4b: Predicting survival by passenger class
+
+0.0/1.0 point (graded)
+
+Predict survival using passenger class on the test set: predict survival if the survival rate for a class is over 0.5, otherwise predict death.
+
+What is the accuracy of this class-based prediction method on the test set?
+
+```{r}
+class_model <- if_else( test_data$Pclass == 1, 1, 0) |> factor()
+
+#mean(y_hat == test_data$Survived)
+```
+
+### Question 4c: Predicting survival by passenger class
+
+0.0/1.0 point (graded)
+
+Use the training set to group passengers by both sex and passenger class.
+
+Which sex and class combinations were more likely to survive than die (i.e. \>50% survival)?
+
+Select ALL that apply.
+
+```{r}
+train_data |> group_by(Pclass, Sex) |> 
+  summarise(mean(Survived == 1))
+```
+
+### Question 4d: Predicting survival by passenger class
+
+0.0/1.0 point (graded)
+
+Predict survival using both sex and passenger class on the test set. Predict survival if the survival rate for a sex/class combination is over 0.5, otherwise predict death.
+
+What is the accuracy of this sex- and class-based prediction method on the test set?
+
+```{r}
+
+sex_class_model <- test_data |> 
+  mutate(y_hat = case_when(
+    Sex == "female" & (Pclass == 1) ~ 1,
+    Sex == "female" & (Pclass == 2) ~ 1, 
+    .default = 0
+  )) |> pull(y_hat) |> factor()
+
+mean(test_data$Survived == sex_class_model)
+```
+
+Use the `confusionMatrix()` function to create confusion matrices for the sex model, class model, and combined sex and class model. You will need to convert predictions and survival status to factors to use this function.
+
+What is the "positive" class used to calculate confusion matrix metrics?
+
+```{r}
+confusionMatrix(sex_class_model, test_data$Survived)
+confusionMatrix(class_model, test_data$Survived)
+confusionMatrix(sex_model, test_data$Survived) 
+```
+
+### Question 6: F1 scores
+
+0.0/2.0 points (graded)
+
+Use the `F_meas()` function to calculate  scores for the sex model, class model, and combined sex and class model. You will need to convert predictions to factors to use this function.
+
+Which model has the highest  score?
+
+```{r}
+F_meas(sex_class_model, test_data$Survived)
+F_meas(class_model, test_data$Survived)
+F_meas(sex_model, test_data$Survived)
+```
+
+### Question 7
+
+Set the seed to 1. Train a model using Loess with the **caret** `gamLoess` method using fare as the only predictor.
+
+```{r}
+train_data |> colnames()
+train_loess <- train(Survived ~ Fare, 
+                     method = "gamLoess", 
+                     data = train_data)
+confusionMatrix(data = predict(train_loess, test_data),
+                reference = test_data$Survived)$overall[["Accuracy"]]
+```
+
+### Question 8: Logistic regression models
+
+0.0/3.0 points (graded)
+
+Set the seed to 1. Train a logistic regression model with the **caret** `glm` method using age as the only predictor.
+
+```{r}
+set.seed(1)
+glm1 <- train(Survived ~ Age,
+      method = "glm",
+      data = train_data)
+confusionMatrix(predict(glm1, test_data),
+                test_data$Survived)$overall[["Accuracy"]]
+#Set the seed to 1. Train a logistic regression model with the caret glm method using four predictors: sex, class, fare, and age.
+
+glm1 <- train(Survived ~ Age + Sex + Fare + Pclass,
+              method = "glm",
+              data = train_data)
+confusionMatrix(predict(glm1, test_data),
+                test_data$Survived)$overall[["Accuracy"]]
+
+#Set the seed to 1. Train a logistic regression model with the caret glm method using all predictors. Ignore warnings about rank-deficient fit.
+glm1 <- train(Survived ~ .,
+              method = "glm",
+              data = train_data)
+confusionMatrix(predict(glm1, test_data),
+                test_data$Survived)$overall[["Accuracy"]]
+```
+
+### Question 9a: kNN model
+
+0.0/1.0 point (graded)
+
+Set the seed to 6. Train a kNN model on the training set using the **caret** `train` function. Try tuning with `k = seq(3, 51, 2)`.
+
+What is the optimal value of the number of neighbors `k`?
+
+```{r}
+set.seed(6)
+k = seq(3, 51 , 2)
+
+train_knn <- train(Survived ~ .,
+      method = "knn",
+      data = train_data,
+      tuneGrid = data.frame(k = seq(3,51,2)))
+
+ggplot(train_knn, highlight = TRUE)
+
+train_knn$bestTune 
+
+train_knn$finalModel
+
+train_knn
+```
+
+```{r}
+confusionMatrix(
+  predict(train_knn, test_data, type = "raw"),
+  test_data$Survived
+  )$overall[["Accuracy"]]
+```
+
+### Question 10: Cross-validation
+
+0.0/2.0 points (graded)
+
+Set the seed to 8 and train a new kNN model. Instead of the default training control, use 10-fold cross-validation where each partition consists of 10% of the total. Try tuning with `k = seq(3, 51, 2)`.
+
+```{r}
+set.seed(8)
+control = trainControl(number = 10, method = "cv", p = 0.9)
+
+train_knn <- train(Survived ~ .,
+                   method = "knn",
+                   data = train_data,
+                   tuneGrid = data.frame(k = seq(3, 51, 2)),
+                   trControl = control)
+ggplot(train_knn, highlight = TRUE)
+train_knn$bestTune
+
+confusionMatrix(predict(train_knn, test_data),
+                test_data$Survived)$overall[["Accuracy"]]
+```
+
+**Controlling cross validation:**
+
+in order to change the number of K(s) for Kfold cross validation to make it faster by reducing the value of K\
+`trainControl` function can be used.
+
+the following cold is a 10 fold cross validation, using 10% of the data each for testing and 90% for training.\
+method = "cv" specifies cross validation\
+number = 10 specifies the number of folds.
+
+the variation in accuracy between K values was greater for the new parameters. the variation can be seen by looking at the \$results of the trained model.
+
+```{r}
+control <- trainControl(method = "cv", number = 10, p = 0.9)
+
+train_knn_cv <- train(y ~ ., method = "knn",
+                      data = mnist_27$train,
+                      tuneGrid = data.frame(k = seq(9,71,2)),
+                      trControl = control)
+ggplot(train_knn_cv, highlight = TRUE)
+
+names(train_knn_cv$results)
+```
+
+### Question 11a: Classification tree model
+
+Set the seed to 10. Use **caret** to train a decision tree with the `rpart` method. Tune the complexity parameter with `cp = seq(0, 0.05, 0.002)`.
+
+```{r}
+set.seed = 10
+
+cTree_model <- train(Survived ~ .,
+                     method = "rpart",
+                     data = train_data,
+                     tuneGrid = data.frame(cp = seq(0, 0.05, 0.002)))
+ggplot(cTree_model, highlights = TRUE)
+cTree_model$bestTune
+
+preds <- predict(cTree_model, test_data)
+mean(preds == test_data$Survived)
+
+plot(cTree_model$finalModel, margin = 0.1) 
+text(cTree_model$finalModel)
+```
+
+### Question 12: Random forest model
+
+0.0/2.0 points (graded)
+
+Set the seed to 14. Use the **caret** `train()` function with the `rf` method to train a random forest. Test values of `mtry = seq(1:7)`. Set `ntree` to 100.
+
+```{r}
+set.seed(14)
+rf_model <- train(Survived ~ .,
+                  method = "rf",
+                  data = train_data,
+                  tuneGrid = data.frame(mtry = seq(1:7)),
+                  ntree = 100
+                  )
+#What mtry value maximizes accuracy?
+rf_model$bestTune
+confusionMatrix(predict(rf_model, test_data),
+                test_data$Survived)$overall[["Accuracy"]]
+ggplot(rf_model, highlights = TRUE)
+rf_model$results
+```
+
+# 6 Model fitting and Recommendation System.
+
+## 6.1 MNIST Case Study.
+
+### Prepocessing - Steps to speed up running the algorithm by getting rid of uncessary calculations
+
+preprocessing includes standardizing predictor values, transforming predictors and removing predictors that are not use full.\
+examples include taking log transforms of predictors, removing predictors that highly correlated with other predictors, and removing predictors with close to zero variation.
+
+`nearZero` function from the caret package will highlight predictors with near zero variability\
+`NearZeroVar`
+
+```{r}
+library(dslabs)
+mnist <- read_mnist()
+
+names(mnist)
+dim(mnist$train$images)
+
+class(mnist$train$labels)
+table(mnist$train$labels)
+
+# sample 10k rows from training set, 1k rows from test set
+set.seed(1990)
+index <- sample(nrow(mnist$train$images), 10000)
+x <- mnist$train$images[index,]
+y <- factor(mnist$train$labels[index])
+
+index <- sample(nrow(mnist$test$images), 1000)
+x_test <- mnist$test$images[index,]
+y_test <- factor(mnist$test$labels[index])
+
+# look at variation in predictors
+library(matrixStats)
+sds <- colSds(x)
+qplot(sds, bins = 256, color = I("black"))
+
+#remove variable with near zero variance
+library(caret)
+nzv <- nearZeroVar(x)
+#visual of columns reccomended for removal. 
+image(matrix(1:784 %in% nzv, 28, 28))
+
+#total number of features still included in the algorithm 
+col_index <- setdiff(1:ncol(x), nzv)
+length(col_index)
+```
+
+### kNN
+
+need to add col names to the feature matrices.
+
+```{r}
+colnames(x) <- 1:ncol(mnist$train$images)
+colnames(x_test) <- colnames(x)
+```
+
+**Optimize for K** is step one of the knn process, but this process will take several minutes
+
+```{r}
+control <- trainControl(method = "cv", number = 10, p = 0.9)
+train_knn <- train(x[ , col_index], y,
+                   method = "knn", 
+                   tuneGrid = data.frame(k = c(3,5,7)),
+                   trControl = control)
+
+train_knn
+```
+
+here is a test training to run first to ensure the code works before running code that may take hours
+
+n and b can be increased incrementally to see how it affects run time.
+
+```{r}
+n <- 1000
+b <- 2
+index <- sample(nrow(x), n)
+control <- trainControl(method = "cv", number = b, p = 0.9)
+train_knn <- train(x[index, col_index], y[index],
+                   method = "knn",
+                   tuneGrid = data.frame(k = c(3,5,7)),
+                   trControl = control)
+```
+
+once the algorithm is optimized it can be applied to the whole
+
+```{r}
+fit_knn <- knn3(x[, col_index], y,  k = 3)
+```
+
+measure accuracy:
+
+```{r}
+y_hat_knn <- predict(fit_knn, x_test[, col_index], type = "class") 
+
+cm <- confusionMatrix(y_hat_knn, factor(y_test))
+cm$overall["Accuracy"]
+```
+
+From the specificity and sensitivity, we also see that 8s are the hardest to detect and the most commonly incorrectly predicted digit is 7.
+
+```{r}
+cm$byClass[, 1:2]
+```
+
+8 are the hardest to detect (lowest sensitivity) and 7s are the most commonly mis identified (lowest specificity.
+
+### Random Forests:
+
+computation time is an issue with random forests. Each for each forest hundreds of trees need to be built, and there are serveral parameters to tune.
+
+most intensive compute is the fitting, as opposed to the predicting for random forests, so only a 5 fold cross validation will be used.
+
+```{r}
+library(randomForest)
+control <- trainControl(method="cv", number = 5)
+grid <- data.frame(mtry = c(1, 5, 10, 25, 50, 100))
+
+train_rf <-  train(x[, col_index], y, 
+                   method = "rf", 
+                   ntree = 150,
+                   trControl = control,
+                   tuneGrid = grid,
+                   nSamp = 5000)
+```
+
+ready to fit the final model with the optimized mtry
+
+```{r}
+fit_rf <- randomForest(x[, col_index], y, 
+                       mtry = train_rf$bestTune$mtry)
+```
+
+plot to check if we made enough trees:
+
+```{r}
+plot(fit_rf)
+```
+
+we see that we achive high accuracy:
+
+```{r}
+y_hat_rf <- predict(fit_rf, x_test[ , col_index])
+cm <- confusionMatrix(y_hat_rf, y_test)
+cm$overall["Accuracy"]
+
+```
+
+with some variable tuning accuracy can be higher
+
+### Variable importance
+
+random tree is a black box method, meaning the how the variables are used to predict can not be, or it is hard to, explain with a mathematical formula.\
+**Variable Importance:** is a measurement of the weight for a factor in the model.
+
+`importance` computes the importance, or the weight, of each feature.
+
+```{r}
+imp <- importance(fit_rf)
+
+```
+
+plot a image of to see which features are used the most
+
+```{r}
+mat <- rep(0, ncol(x))
+mat[col_index] <- imp
+image(matrix(mat, 28, 28))
+```
+
+from the image we can see that the outside edges are not used as much, which makes sense because there is less likely to be writing up there.
+
+```{r}
+rafalib::mypar()
+mat <- rep(0, ncol(x))
+mat[col_index] <- imp
+image(matrix(mat, 28, 28))
+```
+
+#### Using visual assessment to improve logarithms.
+
+how the visual assessment will improve the model depends on the application. In this case we can look at incorrectly identified numbers.
+
+![](images/Screen%20Shot%202024-07-01%20at%2011.09.30%20AM.png)
+
+By examining errors like this we often find specific weaknesses to algorithms or parameter choices and can try to correct them.
+
+## Ensemble: the use of multiple methods in tandem
+
+\
+the results of different alogarithms are combined.
+
+In this examples we will take the average of random forest and KNN results.
+
+In practice we might ensemble dozens or more methods
+
+```{r}
+p_rf <- predict(fit_rf, x_test[,col_index], type = "prob")
+p_rf <- p_rf / rowSums(p_rf)
+p_knn <- predict(fit_knn, x_test[ ,col_index])
+p <- (p_rf + p_knn) / 2
+y_pred <- factor(apply(p, 1, which.max)-1)
+confusionMatrix(y_pred, y_test)$overall["Accuracy"]
+```
+
+### 6.1 exercises
+
+ensemble several models available in the caret package
+
+Use train to apply the models\
+You may need to install some packages. Keep in mind that you will probably get some warnings. Also, it will probably take a while to train all of the models - be patient!
+
+```{r}
+models <- c("glm", "lda", "naive_bayes", "knn", "gamLoess", "qda", "rf")
+```
+
+```{r}
+library(tidyverse)
+library(dslabs)
+library(caret)
+set.seed(1)
+data("mnist_27")
+
+fits <- lapply(models, function(model){ 
+  print(model)
+  train(y ~ ., method = model, mnist_27$train)
+  })
+
+names(fits) <- models
+```
+
+```{r}
+library(caret)
+library(dslabs)
+library(tidyverse)
+set.seed(1)
+data("mnist_27")
+
+fits <- lapply(models, function(model){ 
+	print(model)
+	train(y ~ ., method = model, data = mnist_27$train)
+}) 
+    
+names(fits) <- models
+```
+
+Now that you have all the trained models in a list, use `sapply()` or `map()` to create a matrix of predictions for the test set. You should end up with a matrix with `length(mnist_27$test$y)` rows and `length(models)` columns.
+
+```{r}
+pred <- sapply(fits, function(i)
+  predict(i, mnist_27$test)
+)
+dim(pred)
+```
+
+3.  Now compute accuracy for each model on the test set.
+
+    Report the mean accuracy across all models.
+
+```{r}
+mean(
+  colMeans(pred == mnist_27$test$y) # mean of 1, 0 (true or false) results for y_hat vs. Y
+)
+
+```
+
+4.  Next, build an ensemble prediction by majority vote and compute the accuracy of the ensemble. Vote 7 if more than 50% of the models are predicting a 7, and 2 otherwise.
+
+    What is the accuracy of the ensemble?
+
+```{r}
+
+votes <- rowMeans(pred =="7")
+y_hat <- if_else(votes > 0.5, "7", "2")
+
+acc <- mean(y_hat == mnist_27$test$y)
+```
+
+5.  In Q3, we computed the accuracy of each method on the test set and noticed that the individual accuracies varied.
+
+    How many of the individual methods do better than the ensemble?
+
+```{r}
+colMeans(pred == mnist_27$test$y) > acc
+
+## answer from the course
+ind <- acc > mean(y_hat == mnist_27$test$y)
+sum(ind)
+models[ind]
+```
+
+6.  It is tempting to remove the methods that do not perform well and re-do the ensemble. The problem with this approach is that we are using the test data to make a decision. However, we could use the minimum accuracy estimates obtained from cross validation with the training data for each model from `fit$results$Accuracy`. Obtain these estimates and save them in an object. Report the mean of these training set accuracy estimates.
+
+    What is the mean of these training set accuracy estimates?
+
+```{r}
+acc_hat <- 
+  sapply(fits, function(fit) min((fit$results$Accuracy))) # pull the min value for the accuracy of each fit.
+mean(acc_hat)
+```
+
+the accuracy from the train data can be found in the results of the fit data. the sapply iterates through all of the models we have fitted and stored to the fits object.
+
+6.  Now let's only consider the methods with a minimum accuracy estimate of greater than or equal to 0.8 when constructing the ensemble. Vote 7 if 50% or more of those models are predicting a 7, and 2 otherwise.
+
+    What is the accuracy of the ensemble now?
+
+```{r}
+set.seed(1)
+ind <- acc >= 0.8
+
+votes <- rowMeans(pred[,ind] == "7")
+y_hat <- ifelse(votes >= 0.5, 7, 2)
+mean(y_hat == mnist_27$test$y)
+```
+
+## Recommendation Systems
+
+### Key points:
+
+-   These are complicated models due to the number of inputs and the weight of the inputs are different for each use case of the model (think different users have different interests)
+
+-   For error the Residual Mean Squared Error metric will be used. it can be interpreted similar to Standard Deviation.
+
+-   If $N$ is the number of user-movie combinations, is the rating for movie $i$ by user $u$ , and $\hat{y}_{u, i}$ is our prediction, then **RMSE is defined as follows**: 
+
+$$
+\sqrt{ \frac{1}{N} \sum_{u, i} ( \hat{y}_{u, i} - y_{u, i} )^2}
+$$
+
+### Notes on recommendation systems
+
+-   **\
+    Recommendation systems** use ratings that the users give an item on buying and/or using them to make specific recommendations.Companies like Amazon collect massive datasets of user ratings on the products sold to them. The datasets are subsequently used to predict a high rated items for a given user and are then recommended to the user.
+
+-   Similarly, Netflix use movie ratings provided by users to predict a high rated movie for a given user and then recommended it to the user. Usually the movie ratings are on a 1-5 scale, where 5 represents an excellent movie and 1 suggests it to be a poor one.
+
+-   Here we describe the basics of how the movie recommendations are made, motivated by some of the approaches taken by the winners of the *Netflix Challenges*.
+
+-   In October 2006, Netflix offered a challenge on improving their movie recommendation system by 10% to win a prize money of a million dollars. The details of the challenge and the summary of the winning algorithm can be found in the *Netflix Challenge links*. Here we describe some of the data analysis strategies used by the winners of the challenge.
+
+[**Movielens data**]{.underline}
+
+-   Though the Netflix data is not available publicly, a database with over 20 million ratings for over 27,000 movies rated by more than 138,000 was generated by the GroupLens research lab. We made a small subset of this data and the data is available in **dslabs** package. 
+
+-   **The data can be uploaded** as follows:
+
+```{r}
+library(dslabs)
+library(tidyverse)
+data("movielens")
+movielens |> as_tibble()
+```
+
+Each row gives a rating by one user to one movie
+
+-   Number of unique users and the number of unique movies can be viewed as follows:
+
+```{r}
+movielens |> 
+  summarize(n_users = n_distinct(userId),
+            n_movies = n_distinct(movieId)) 
+  
+```
+
+Every movie is not rated by every user. Evident by there being only 100003 rows but if 671 (n_users) is multiplied by n_movies (9066) the total is over 5 million. Therefore, if data is arranged by giving each user a row there will many empty data points.
+
+-   **Filling in the NAs in the above table can be thought as a task of recommendation system.**The following matrix consisting of a random sample of 100 movies and 100 users show how sparse the matrix is. The yellow dots represent the user/movie combination for which a rating is available.
+
+![](images/clipboard-1763100775.png){width="350"}
+
+If we suppose that we are recommending movie $i$ for user $u$ we can use all of the predictors for the movie and the user, as well as all of the predictors for similar movies and for similar users. thus for prediction of Y a different set of predictors can be use.
+
+-   **General Characteristics of the Data:** based on the chart is is obvious that some movies are more highly rated than other movies and some users complete more reviews than other users.
+
+![](images/asset-v1-HarvardX+PH125.8x+3T2022+type@asset+block@movie_user_characteristics.png){fig-align="center" width="563"}
+
+-   as part of the machine learning problem we need to create an algorithm based on the data we do have that others can use.
+
+-   Create a train and test set that does not have cross population
+
+```{r}
+library(caret)
+set.seed(775)
+test_index <- createDataPartition(y = movielens$rating, times = 1,
+                                  p = 0.2, list = FALSE)
+train_set <- movielens[-test_index,]
+test_set <- movielens[test_index,]
+
+test_set <- test_set |> 
+  semi_join(train_set, by = "movieId") |> 
+  semi_join(train_set, by = "userId") #all of the same users and movies are in the train set and the test set
+```
+
+-   **Loss Function:** as stated above the residual mean squared error (RMSE).
+
+-   If $N$ is the number of user-movie combinations, is the rating for movie $i$ by user $u$ , and $\hat{y}_{u, i}$ is our prediction, then **RMSE is defined as follows**: 
+
+$$
+\sqrt{ \frac{1}{N} \sum_{u, i} ( \hat{y}_{u, i} - y_{u, i} )^2}
+$$
+
+## Building Movie Recommendation System
+
+### Key points
+
+-   start with a model that assumes the same rating for all movies and all users, with differences explained by random variation. If $\mu$ represents the true rating and $\epsilon$ represents the independent errors sampled from the same distribution centered at zero, then:
+
+$$
+Y_{u, i} = \mu + \epsilon_{u, i}
+$$
+
+-   in this case the the least squares estimate of $\mu$ - the estimate that minimizes the root mean squared error - is the average of all movies across all users.
+
+-   we can imporve the model by adding the average movie rating $b_i$ which represents the average rating for movie $i$:
+
+$$
+Y_{u, i} = \mu + \epsilon_{u, i}
+$$
+
+$b_i$ is the average of $Y_{u,i}$ minus the overall mean of each movie $i$.
+
+-   the model can be firther improved by adding $b_u$, the user-specific effect:
+
+    -   $$
+        Y_{u, i} = \mu + b_i + b_u + \epsilon_{u, i}
+        $$
+
+-   Note do not use linear regression to calculate these effects due to their being thousands of $b$'s which will take R excessivley long to run or will crash the program.
+
+### Notes on building the recommendation system
+
+#### First model
+
+-   **Building the first model - the simplest possible recommendation system:** this will model will give the same rating to every movie and user. the model is as follows:
+
+    -   $$
+         Y_{u,i} = \mu + \epsilon_{u,i}
+        $$
+
+    -   where, $\mu$ represents the true rating for all movies and users while $\epsilon$ represents the independent errors samples from the same distribution centered at zero
+
+-   we know that the estimate that minimizes the RMSE is the least squares of $\mu$ and, in this case, is the average of all ratings. suppose $\hat\mu$ represents the average of all ratings and if we use $\hat\mu$ to predict all the unknown movie ratings. **From our data table, we obtain** $\hat\mu$ and RMSE as shown below:
+
+```{r}
+RMSE <- function(true_ratings, predicted_ratings){
+  sqrt(mean((true_ratings - predicted_ratings)^2))
+}
+
+mu_hat <- mean(train_set$rating)
+mu_hat
+
+naive_rmse <- RMSE(test_set$rating, mu_hat)
+naive_rmse
+```
+
+-   the following code shows that using any number other than $\hat\mu$ would have a larger RMSE
+
+#### Modeling movie effects:
+
+-   Some movies are generally more highly rated than. adding $b_i$ which represents the ranking of movie $i$ will improve the model. the improved model is as follows
+
+    -   $$
+        Y_{u,I} = \mu = b_i + \epsilon_{u,i}
+        $$
+
+-   we will used least squaress to estimate $b_i$ in the following way
+
+```{r}
+fit <- lm(rating ~ as.factor(userId), data = movielens)
+```
+
+because there are so many $b_i$ runing the code above is not reccomended. inthis situation we know the least squares estimate $\hat b_i$ is just the average of $Y_{u,i} - \hat mu$ so we can compute them as shown below\
+*(Note that to make the code look cleaner, we are not using the hat notation from this point onwards)*
+
+```{r}
+mu <- mean(train_set$rating)
+movie_avgs <- train_set |> 
+  group_by(movieId) |> 
+  summarize(b_i = mean(rating - mu))
+```
+
+-   the variation in movie rating varies substantially as shown in the chart below
+
+![](images/asset-v1-HarvardX+PH125.8x+3T2023+type@asset+block@b_i_estimates.png){fig-align="center" width="325"}
+
+-   we had athe starting $\hat mu$, the average of all ratings, as 3.5 so a $\hat b_i$ of 1.5 implies $\hat y_{u,i} = \hat \mu + \hat b_i = 3.5 + 1.5 = 5$ a perfect five-star rating.
+
+-   Now let's see how much our prediction improves using the model we just fit. **We** can use this code and see that our risdual mean squared error did drop a bit
+
+```{r}
+predicted_ratings <- mu + test_set |> 
+  left_join (movie_avgs, by = 'movieId') |> 
+  pull(b_i) #take the predicted ratings by puting them in the predictions in the same order as the test_set using left join then pulling out the predictions. 
+
+model_1_rmse <- RMSE(predicted_ratings, test_set$rating)
+model_1_rmse
+```
+
+#### Modeling user effects
+
+-   we use the following code to compute the average rating for user $\mu$ for those that have rated 100 or more movies and to plot the same
+
+```{r}
+train_set |> 
+  group_by(userId) |> 
+  summarize(b_u = mean(rating)) |> 
+  filter(n() >= 100) |> 
+  ggplot(aes(b_u)) +
+  geom_histogram(bins = 30, color = "black")
+  
+```
+
+-   the variability is still substantial indicating that there is still futher improvement to madein the model. the improvement may be
+
+    -   $$
+        Y_{u,i} = \mu +b_i + b_u + \epsilon_{u,i} 
+        $$
+
+    -   where, $b_u$ is the user specific effect. if a crank user (neagtive $b_u$) gives a good movie $b_i$ a bad review, we may be able to predict that the user gives the movie a 3 rather than a 5
+
+-   though the above model can be fit with the following line of code, we don't reccoment running the code
+
+```{r}
+lm(rating ~ as.factor(movieId) + as.factor(usserId))
+```
+
+-   **Instead** we will compute the approximation by computing $\hat \mu$ and $\hat b_i$ and estimating $\hat b_u$ as the average of $\hat y_{u,i} - \hat \mu - \hat b_i$. remeber \|hat y\_{u,i}\$ is our prediction
+
+```{r}
+user_avgs <- train_set |> 
+  left_join(movie_avgs, by = 'movieId') |> 
+  group_by(userId) |> 
+  summarize(b_u = mean(rating - mu - b_i))
+```
+
+-   Now we can construct predictors and see if the RMSE has improved with the code below:
+
+```{r}
+predicted_ratings <- test_set |> 
+  left_join(movie_avgs, by = 'movieId') |> 
+  left_join(user_avgs, by = 'userId') |> 
+  mutate(pred = mu + b_i + b_u) |> 
+  pull(pred)
+
+model_2_rmse <- RMSE(predicted_ratings, test_set$rating)
+model_2_rmse
+```
+
+```{r}
+rmse_results <- data_frame(method = "Just the average", RMSE = naive_rmse)
+rmse_results <- bind_rows(rmse_results,
+                          data_frame(method="Movie Effect Model",
+                                     RMSE = model_1_rmse ))
+rmse_results <- bind_rows(rmse_results,
+                          data_frame(method="Movie + User Effects Model",  
+                                     RMSE = model_2_rmse ))
+rmse_results %>% knitr::kable()
+```
+
+the RMSE is lowest for the Movie and User effect model and largest for the average. in this case adding more predictors increases the effectiveness of the model.
+
+### Comprehension Check: Recommendation Systems
+
+```{r}
+library(tidyverse)
+library(lubridate)
+library(dslabs)
+data("movielens")
+```
+
+1.  Compute the number of ratings for each movie and then plot it against the year the movie came out using a boxplot for each year. Use the square root transformation on the y-axis (number of ratings) when creating your plot.
+
+    What year has the highest median number of ratings?
+
+```{r}
+movielens |> 
+  group_by(movieId) |> 
+  summarize(n = n(), year = as.chacter(year)) |> 
+  ggplot(aes(x = year, y = n)) +
+  geom_boxplot()
+```
+
+```{r}
+movielens %>% group_by(movieId) %>%
+	summarize(n = n(), year = as.character(first(year))) %>%
+	qplot(year, n, data = ., geom = "boxplot") +
+	coord_trans(y = "sqrt") +
+    theme(axis.text.x = element_text(angle = 90, hjust = 1))
+
+
+```
+
+2.  We see that, on average, movies that came out after 1993 get more ratings. We also see that with newer movies, starting in 1993, the number of ratings decreases with year: the more recent a movie is, the less time users have had to rate it. 
+
+    Among movies that came out in 1993 or later, select the top 25 movies with the highest average number of ratings per year (n/year), and caculate the average rating of each of them. To calculate number of ratings per year, use 2018 as the end year.
+
+    What is the average rating for the movie The Shawshank Redemption?
+
+```{r}
+movielens |> 
+  filter(year >= 1993) |> 
+  group_by(movieId) |> 
+  summarize(title = title[1], 
+            n = n(),
+            avg_rating = mean(rating),
+            years = 2018 - first(year)) |> 
+  mutate(rate = n / years) |> 
+  top_n(25, rate) |> 
+  arrange(desc(rate)) |> 
+  filter(title %in% c("Forrest Gump", "Shawshank Redemption, The"))
+
+movielens %>% 
+	filter(year >= 1993) %>%
+	group_by(movieId) %>%
+	summarize(n = n(), years = 2018 - first(year),
+				title = title[1],
+				rating = mean(rating)) %>%
+	mutate(rate = n/years) %>%
+	top_n(25, rate) %>%
+	arrange(desc(rate))
+
+```
+
+3.  From the table constructed in Q2, we can see that the most frequently rated movies tend to have above average ratings. This is not surprising: more people watch popular movies. To confirm this, stratify the post-1993 movies by ratings per year and compute their average ratings. To calculate number of ratings per year, use 2018 as the end year. Make a plot of average rating versus ratings per year and show an estimate of the trend.
+
+    What type of trend do you observe?
+
+```{r}
+movielens |> 
+  filter(year >= 1993) |> 
+  group_by(movieId) |> 
+  summarize(title = title[1], 
+            n = n(),
+            avg_rating = mean(rating),
+            years = 2018 - first(year)) |> 
+  mutate(rate = n / years) |> 
+  ggplot(aes(x = rate, y = avg_rating)) +
+  geom_point() +
+  geom_smooth()
+```
+
+4.  Suppose you are doing a predictive analysis in which you need to fill in the missing ratings with some value.
+
+    Given your observations in the exercise in Q3, which of the following strategies would be most appropriate?\
+    Because a lack of ratings is associated with lower ratings, it would be most appropriate to fill in the missing value with a lower value than the average. You should try out different values to fill in the missing value and evaluate prediction in a test set.
+
+5.  The `movielens` dataset also includes a time stamp. This variable represents the time and data in which the rating was provided. The units are seconds since January 1, 1970. Create a new column `date` with the date.
+
+    Which code correctly creates this new column?
+
+```{r}
+movielens <- 
+  mutate(movielens, date = as_datetime(timestamp))
+```
+
+6.  Compute the average rating for each week and plot this average against date. Hint: use the `round_date()` function before you `group_by()`.
+
+    What type of trend do you observe?
+
+```{r}
+movielens |> 
+  mutate(date = round_date(date, unit = "week")) |> 
+  group_by(date) |> 
+  summarize(avg_rating = mean(rating)) |> 
+  ggplot(aes(date, avg_rating)) +
+  geom_point() +
+  geom_smooth()
+movielens %>% mutate(date = round_date(date, unit = "week")) %>%
+	group_by(date) %>%
+	summarize(rating = mean(rating)) %>%
+	ggplot(aes(date, rating)) +
+	geom_point() +
+	geom_smooth()
+```
+
+7.  Consider again the plot you generated in Q6.
+
+If we define $d_{u,i}$ as the day for user's $u$ rating of movie $i$, which of the following models is most appropriate?
+
+-   [ ] A. $Y_{u,i} = \mu + b_i + b_u + d_{u,i} + \varepsilon_{u,i}$
+-   [ ] B. $Y_{u,i} = \mu + b_i + b_u + d_{u,i}\beta + \varepsilon_{u,i}$
+-   [ ] C. $Y_{u,i} = \mu + b_i + b_u + d_{u,i}\beta_i + \varepsilon_{u,i}$
+-   [x] D. $Y_{u,i} = \mu + b_i + b_u + f(d_{u,i}) + \varepsilon_{u,i}$
+
+8.  The `movielens` data also has a `genres` column. This column includes every genre that applies to the movie. Some movies fall under several genres. Define a category as whatever combination appears in this column. Keep only categories with more than 1,000 ratings. Then compute the average and standard error for each category. Plot these as error bar plots.
+
+    Which genre has the lowest average rating?
+
+    Enter the name of the genre exactly as reported in the plot, including capitalization and punctuation.
+
+```{r}
+movielens |> 
+  group_by(genres) |> 
+  summarize(n = n(),
+            avg_rating = mean(rating), se = sd(rating) / sqrt(n())) |> 
+  filter(n >= 1000) |> 
+  mutate(genres = reorder(genres, avg_rating)) |> 
+  ggplot(aes(x = genres, y = avg_rating, 
+             ymin = avg_rating - 2 * se, ymax = avg_rating + 2*se)) +
+  geom_point() +
+  geom_smooth() +
+  geom_errorbar()+
+  theme(axis.text.x = element_text(angle = 90))
+  
+  
+```
+
+## Regularization
+
+### set up:
+
+```{r}
+library(dslabs)
+library(tidyverse)
+library(caret)
+data("movielens")
+set.seed(755)
+test_index <- createDataPartition(y = movielens$rating, times = 1,
+                                  p = 0.2, list = FALSE)
+train_set <- movielens[-test_index,]
+test_set <- movielens[test_index,]
+test_set <- test_set %>% 
+     semi_join(train_set, by = "movieId") %>%
+     semi_join(train_set, by = "userId")
+RMSE <- function(true_ratings, predicted_ratings){
+     sqrt(mean((true_ratings - predicted_ratings)^2))
+}
+mu_hat <- mean(train_set$rating)
+naive_rmse <- RMSE(test_set$rating, mu_hat)
+rmse_results <- data_frame(method = "Just the average", RMSE = naive_rmse)
+mu <- mean(train_set$rating) 
+movie_avgs <- train_set %>% 
+     group_by(movieId) %>% 
+     summarize(b_i = mean(rating - mu))
+predicted_ratings <- mu + test_set %>% 
+     left_join(movie_avgs, by='movieId') %>%
+     pull(b_i)
+model_1_rmse <- RMSE(predicted_ratings, test_set$rating)
+rmse_results <- bind_rows(rmse_results,
+                          data_frame(method="Movie Effect Model",
+                                     RMSE = model_1_rmse ))
+user_avgs <- train_set %>% 
+     left_join(movie_avgs, by='movieId') %>%
+     group_by(userId) %>%
+     summarize(b_u = mean(rating - mu - b_i))
+predicted_ratings <- test_set %>% 
+     left_join(movie_avgs, by='movieId') %>%
+     left_join(user_avgs, by='userId') %>%
+     mutate(pred = mu + b_i + b_u) %>%
+     pull(pred)
+model_2_rmse <- RMSE(predicted_ratings, test_set$rating)
+rmse_results <- bind_rows(rmse_results,
+                          data_frame(method="Movie + User Effects Model",  
+                                     RMSE = model_2_rmse ))
+```
+
+### Notes on regularization:
+
+-   Regularization will be used to further improve results (reduce the RMSE)
+
+-   Including the movie effects reduced the RMSE from 1.048 to 0.986. a gain of about 5 % despite the large movie to movie variations.
+
+    -   Look at that only includes movie effects to underdstand the problem.
+
+    -   Let's look at the 10 largest mistakes predicted by the model.
+
+```{r}
+library(dslabs)
+test_set |> 
+  left_join(movie_avgs, by = 'movieId') |>  
+  mutate(residual = rating - (mu + b_i)) |> 
+  arrange(desc(abs(residual))) |> 
+  select(title, residual)|> 
+  slice(1:10) |> pull(title)
+```
+
+-   they seem to look obscure movies. If the worst ten movies based on $\hat b_i$ are also examined it will make more sense.
+
+    -   these are not obscure movies I am not sure why this is different from the course
+
+```{r}
+movie_titles <- movielens |> 
+  dplyr::select(movieId, title) |> distinct()
+movie_avgs |> left_join(movie_titles, by = "movieId") |> 
+  arrange(b_i) |> 
+  dplyr::select(title,b_i) |> 
+  slice(1:10) |> 
+  pull(title)
+```
+
+-   the top 10 and bottom 10 are all obscure movies.
+
+-   Look at how often the movies are rated
+
+```{r}
+train_set |> count(movieId) |> 
+  left_join(movie_avgs, by = "movieId") |> 
+  left_join(movie_titles, by = 'movieId') |> 
+  arrange(desc(b_i)) |> 
+  slice(1:10) |> 
+  pull(n)
+
+train_set |> count(movieId) |> 
+  left_join(movie_avgs) |> 
+  left_join(movie_titles, by = 'movieId') |> 
+  arrange(b_i) |> 
+  slice(1:10) |> 
+  pull(n)
+```
+
+-   both groups of movies were rated very infrequently.
+
+-   low ratings means high uncertainty and large $\hat b_i$ (both negative and positive)
+
+-   Large errors can increase our RMSE, so we would rather be conservative than unsure
+
+-   **Regularization:** permits us to penallize large estimates that are formed using small sample sizes. It has commonalities with Bayesian approach that shrunk predictions
+
+### Penalize least squares
+
+[Using regularizatoin to estimate the movie effect:]{.underline}
+
+-   To estimate the b's, we will now minimize this equation, which contains a penalty term:
+
+    -   $$
+        \frac{1}{N}\sum_{u, i}(y_{u, i}-\mu-b_i)^2 + \lambda\sum_i b_{i}^2
+        $$
+
+    -   the first term is the mean squared error and the second is a penalty term that increases when $b$'s are large.\
+        the values of $b$'s that minimize the equation are given by:
+
+    -   $$
+        \hat{b}_{i}(\lambda) = \frac{1}{\lambda+n_i}\sum_{u=1}^{n_i}(Y_{u, i} - \hat{\mu}),
+        $$
+
+-   the larger $\lambda$ the more we shrink. $\lambda$ is a tuning parameter so cross validation can pick it. Only run cross validatoin on the training set, leaving data from the test set alone.
+
+-   Using $\lambda = 3$ let's see how the estimates shrink by looking at the plot of the regularized estimates vs. the least squares estimate.
+
+```{r}
+lambda <- 3
+mu <- mean(train_set$rating)
+movie_reg_avgs <- train_set %>% 
+     group_by(movieId) %>% 
+     summarize(b_i = sum(rating - mu)/(n()+lambda), n_i = n()) 
+
+data_frame(original = movie_avgs$b_i, 
+           regularlized = movie_reg_avgs$b_i, 
+           n = movie_reg_avgs$n_i) %>%
+     ggplot(aes(original, regularlized, size=sqrt(n))) + 
+     geom_point(shape=1, alpha=0.5)
+```
+
+-   If we apply the penalized system to the top 10 besst and worst movie task we get much more relevant movies.
+
+    -   the list is below.
+
+    -   it's still not the same list as what is on the course page. but I'm pulling the code from the code they provided so I have not be able to diagnose the cause of the differentiation.
+
+```{r}
+train_set %>%
+     dplyr::count(movieId) %>% 
+     left_join(movie_reg_avgs) %>%
+     left_join(movie_titles, by="movieId") %>%
+     arrange(desc(b_i)) %>% 
+     dplyr::select(title, b_i, n) %>% 
+     slice(1:10) %>% 
+     knitr::kable()
+
+train_set %>%
+     dplyr::count(movieId) %>% 
+     left_join(movie_reg_avgs) %>%
+     left_join(movie_titles, by="movieId") %>%
+     arrange(b_i) %>% 
+     dplyr::select(title, b_i, n) %>% 
+     slice(1:10) %>% 
+     knitr::kable()
+```
+
+### Regularization to estimate the user effect
+
+-   Aim to minimize this equation :
+
+    -   $$
+        \frac{1}{N}\sum_{u, i}(y_{u, i}-\mu-b_i-b_u)^2 + \lambda(\sum_i b_{i}^2 + \sum_u b_{u}^2)
+        $$
+
+-   Again $\lambda$ should be found cusing cross validation on the train_set alone.
+
+**Comparison of all 5 models so far**
+
+-   The comparison of all five models built up until now are shown below.
+
+```{r}
+data("movielens")
+set.seed(755)
+test_index <- createDataPartition(y = movielens$rating, times = 1,
+                                  p = 0.2, list = FALSE)
+train_set <- movielens[-test_index,]
+test_set <- movielens[test_index,]
+test_set <- test_set %>% 
+     semi_join(train_set, by = "movieId") %>%
+     semi_join(train_set, by = "userId")
+RMSE <- function(true_ratings, predicted_ratings){
+     sqrt(mean((true_ratings - predicted_ratings)^2))
+}
+mu_hat <- mean(train_set$rating)
+naive_rmse <- RMSE(test_set$rating, mu_hat)
+rmse_results <- data_frame(method = "Just the average", RMSE = naive_rmse)
+mu <- mean(train_set$rating) 
+movie_avgs <- train_set %>% 
+     group_by(movieId) %>% 
+     summarize(b_i = mean(rating - mu))
+predicted_ratings <- mu + test_set %>% 
+     left_join(movie_avgs, by='movieId') %>%
+     .$b_i
+model_1_rmse <- RMSE(predicted_ratings, test_set$rating)
+rmse_results <- bind_rows(rmse_results,
+                          data_frame(method="Movie Effect Model",
+                                     RMSE = model_1_rmse ))
+user_avgs <- test_set %>% 
+     left_join(movie_avgs, by='movieId') %>%
+     group_by(userId) %>%
+     summarize(b_u = mean(rating - mu - b_i))
+predicted_ratings <- test_set %>% 
+     left_join(movie_avgs, by='movieId') %>%
+     left_join(user_avgs, by='userId') %>%
+     mutate(pred = mu + b_i + b_u) %>%
+     .$pred
+model_2_rmse <- RMSE(predicted_ratings, test_set$rating)
+rmse_results <- bind_rows(rmse_results,
+                          data_frame(method="Movie + User Effects Model",  
+                                     RMSE = model_2_rmse ))
+
+test_set %>% 
+     left_join(movie_avgs, by='movieId') %>%
+     mutate(residual = rating - (mu + b_i)) %>%
+     arrange(desc(abs(residual))) %>% 
+     dplyr::select(title,  residual) %>% slice(1:10) %>% knitr::kable()
+
+movie_titles <- movielens %>% 
+     dplyr::select(movieId, title) %>%
+     distinct()
+movie_avgs %>% left_join(movie_titles, by="movieId") %>%
+     arrange(desc(b_i)) %>% 
+     dplyr::select(title, b_i) %>% 
+     slice(1:10) %>%  
+     knitr::kable()
+
+movie_avgs %>% left_join(movie_titles, by="movieId") %>%
+     arrange(b_i) %>% 
+     dplyr::select(title, b_i) %>% 
+     slice(1:10) %>%  
+     knitr::kable()
+
+train_set %>% dplyr::count(movieId) %>% 
+     left_join(movie_avgs) %>%
+     left_join(movie_titles, by="movieId") %>%
+     arrange(desc(b_i)) %>% 
+     dplyr::select(title, b_i, n) %>% 
+     slice(1:10) %>% 
+     knitr::kable()
+
+train_set %>% dplyr::count(movieId) %>% 
+     left_join(movie_avgs) %>%
+     left_join(movie_titles, by="movieId") %>%
+     arrange(b_i) %>% 
+     dplyr::select(title, b_i, n) %>% 
+     slice(1:10) %>% 
+     knitr::kable()
+lambda <- 3
+mu <- mean(train_set$rating)
+movie_reg_avgs <- train_set %>% 
+     group_by(movieId) %>% 
+     summarize(b_i = sum(rating - mu)/(n()+lambda), n_i = n()) 
+
+data_frame(original = movie_avgs$b_i, 
+           regularlized = movie_reg_avgs$b_i, 
+           n = movie_reg_avgs$n_i) %>%
+     ggplot(aes(original, regularlized, size=sqrt(n))) + 
+     geom_point(shape=1, alpha=0.5)
+
+train_set %>%
+     dplyr::count(movieId) %>% 
+     left_join(movie_reg_avgs) %>%
+     left_join(movie_titles, by="movieId") %>%
+     arrange(desc(b_i)) %>% 
+     dplyr::select(title, b_i, n) %>% 
+     slice(1:10) %>% 
+     knitr::kable()
+
+train_set %>%
+     dplyr::count(movieId) %>% 
+     left_join(movie_reg_avgs) %>%
+     left_join(movie_titles, by="movieId") %>%
+     arrange(b_i) %>% 
+     dplyr::select(title, b_i, n) %>% 
+     slice(1:10) %>% 
+     knitr::kable()
+
+predicted_ratings <- test_set %>% 
+     left_join(movie_reg_avgs, by='movieId') %>%
+     mutate(pred = mu + b_i) %>%
+     .$pred
+
+model_3_rmse <- RMSE(predicted_ratings, test_set$rating)
+rmse_results <- bind_rows(rmse_results,
+                          data_frame(method="Regularized Movie Effect Model",  
+                                     RMSE = model_3_rmse ))
+rmse_results %>% knitr::kable()
+
+lambdas <- seq(0, 10, 0.25)
+mu <- mean(train_set$rating)
+just_the_sum <- train_set %>% 
+     group_by(movieId) %>% 
+     summarize(s = sum(rating - mu), n_i = n())
+rmses <- sapply(lambdas, function(l){
+     predicted_ratings <- test_set %>% 
+          left_join(just_the_sum, by='movieId') %>% 
+          mutate(b_i = s/(n_i+l)) %>%
+          mutate(pred = mu + b_i) %>%
+          .$pred
+     return(RMSE(predicted_ratings, test_set$rating))
+})
+qplot(lambdas, rmses)  
+lambdas[which.min(rmses)]
+
+lambdas <- seq(0, 10, 0.25)
+rmses <- sapply(lambdas, function(l){
+     mu <- mean(train_set$rating)
+     b_i <- train_set %>%
+          group_by(movieId) %>%
+          summarize(b_i = sum(rating - mu)/(n()+l))
+     b_u <- train_set %>% 
+          left_join(b_i, by="movieId") %>%
+          group_by(userId) %>%
+          summarize(b_u = sum(rating - b_i - mu)/(n()+l))
+     predicted_ratings <- 
+          test_set %>% 
+          left_join(b_i, by = "movieId") %>%
+          left_join(b_u, by = "userId") %>%
+          mutate(pred = mu + b_i + b_u) %>%
+          .$pred
+     return(RMSE(predicted_ratings, test_set$rating))
+})
+
+qplot(lambdas, rmses)  
+
+lambda <- lambdas[which.min(rmses)]
+lambda
+
+rmse_results <- bind_rows(rmse_results,
+                          data_frame(method="Regularized Movie + User Effect Model",  
+                                     RMSE = min(rmses)))
+rmse_results %>% knitr::kable()
+```
+
+## Comprehension check Regularization
+
+An education expert is advocating for smaller schools. The expert bases this recommendation on the fact that among the best performing schools, many are small schools. Let's simulate a dataset for 1000 schools. First, let's simulate the number of students in each school, using the following code:
+
+```{r}
+library(dslabs)
+library(tidyverse)
+library(caret)
+```
+
+```{r}
+set.seed(1986)
+n <- round(2^rnorm(1000, 8, 1))
+```
+
+Now let's create rankings that are independent of school size.
+
+```{r}
+set.seed(1)
+mu <- round(80 + 2*rt(1000, 5))
+range(mu)
+schools <- data.frame(id = paste("PS",1:1000),
+                      size = n,
+                      quality = mu,
+                      rank = rank(-mu))
+
+```
+
+we can see the top 10 schools with this code:
+
+```{r}
+schools |> top_n(10, quality) |> arrange(desc(quality))
+```
+
+Now let's simulate a test. there is random variability in test taking so we will simulate the test scores as normally distributed with the average determined by the school quality with a sd of 30 percentage points. the following code simulates the test.
+
+```{r}
+set.seed(1)
+mu <- round(80 + 2*rt(1000, 5))
+
+scores <- sapply(1:nrow(schools), function(i){
+       scores <- rnorm(schools$size[i], schools$quality[i], 30)
+       scores
+})
+schools <- schools %>% mutate(score = sapply(scores, mean))
+```
+
+1.  What are the top schools based on the average score? Show just the ID, size, and the average score.
+
+    Report the ID of the top school and average score of the 10th school.
+
+    What is the ID of the top school?
+
+    Note that the school IDs are given in the form "PS x" - where x is a number. Report the **number** only.
+
+```{r}
+schools |>
+  select(id,size,score) |> 
+  arrange(desc(score)) |> 
+  slice(10)
+```
+
+2.  Compare the median school size to the median school size of the top 10 schools based on the score.
+
+    What is the median school size overall?
+
+```{r}
+schools |> summarize(median = median(size)) |> pull(median)
+
+schools %>% top_n(10, score) |> summarize(median = median(size)) |> pull(median)
+```
+
+3.  According to this analysis, it appears that small schools produce better test scores than large schools. Four out of the top 10 schools have 100 or fewer students. But how can this be? We constructed the simulation so that quality and size were independent. Repeat the exercise for the worst 10 schools.
+
+    What is the median school size of the bottom 10 schools based on the score?
+
+```{r}
+schools |> arrange(score) |> 
+  slice(1:10) |> pull(size) |> 
+  median()
+
+# Course book answer
+schools %>% top_n(-10, score) %>% .$size %>% median()
+```
+
+4.  From this analysis, we see that the worst schools are also small. Plot the average score versus school size to see what's going on. Highlight the top 10 schools based on the **true** quality.
+
+```{r}
+schools |> 
+  ggplot(aes(x = size, y = score)) +
+  geom_point(alpha = 0.5) +
+  geom_point(data = filter(schools, rank <= 10), col = "blue")
+
+```
+
+5.  Let's use regularization to pick the best schools. Remember regularization **shrinks** deviations from the average towards 0. To apply regularization here, we first need to define the overall average for all schools, using the following code:
+
+```{r}
+overall <- mean(sapply(scores, mean))
+
+```
+
+Then, we need to define, for each school, how it deviates from that average.
+
+Write code that estimates the score above the average for each school but dividing by $n + \alpha$ instead of $n$, with $n$ the school size and $\alpha$ a regularization parameter. Try $\alpha = 25$.
+
+What is the ID of the top school with regularization?
+
+What is the regularized score of the 10th school?
+
+```{r}
+alpha <- 25
+
+reg <- sapply(scores, function(x){
+  overall + sum(x - overall) / (length(x) + alpha)
+})
+schools |> mutate(scores_reg = reg) |> 
+  top_n(10, scores_reg) |> 
+  arrange(desc(scores_reg)) |> 
+  slice(10)
+
+```
+
+6.  Notice that this improves things a bit. The number of small schools that are not highly ranked is now lower. Is there a better $\alpha$? Using values of $\alpha$ from 10 to 250, find the $\alpha$ that minimizes the RMSE.
+
+$\text{RMSE} = \sqrt{\frac{1}{1000} \sum_{i=1}^{1000} (\mbox{quality} - \mbox{estimate})^2}$
+
+What value of $\alpha$ gives the minimum RMSE?
+
+```{r}
+alphas <- seq(10,250)
+
+rmse <- sapply(alphas, function(alpha){
+  score_reg <- sapply(scores, function(x) 
+    overall + sum(x - overall) / (length(x) + alpha))
+  sqrt(mean((score_reg - schools$quality)^2))
+  })
+
+data_frame(alpha = alphas, rmse = rmse) |> #slice_min(rmse)
+  ggplot(aes(alpha, rmse) ) +
+  geom_point()
+
+alphas <- seq(10,250)
+rmse <- sapply(alphas, function(alpha){
+	score_reg <- sapply(scores, function(x) overall+sum(x-overall)/(length(x)+alpha))
+	sqrt(mean((score_reg - schools$quality)^2))
+})
+plot(alphas, rmse)
+alphas[which.min(rmse)]
+```
+
+7.  Rank the schools based on the average obtained with the best $\alpha$ from Q6. Note that no small school is incorrectly included.
+
+    What is the ID of the top school now?
+
+    Note that the school IDs are given in the form "PS x" - where x is a number. Report the **number** only.
+
+```{r}
+alpha <- 135
+scores_reg <- sapply(scores, function(x)
+  overall + sum(x - overall) / (length(x) + alpha))
+
+schools |> mutate(scores_reg = scores_reg) |> 
+  arrange(desc(scores_reg)) |> slice(10) |> pull(id)
+```
+
+8.  A common mistake made when using regularization is shrinking values towards 0 that are not centered around 0. For example, if we don't subtract the overall average before shrinking, we actually obtain a very similar result. Confirm this by re-running the code from the exercise in Q6 but without removing the overall mean. 
+
+    What value of  gives the minimum RMSE here?
+
+```{r}
+alphas <- seq(10,250)
+
+rmse <- sapply(alphas, function(alpha){
+  score_reg <- sapply(scores, function(x) 
+    sum(x) / (length(x) + alpha))
+  sqrt(mean((score_reg - schools$quality)^2))
+  })
+
+data_frame(alpha = alphas, rmse = rmse) |> #slice_min(rmse)
+  ggplot(aes(alpha, rmse) ) +
+  geom_point()
+```
+
+## 6.3 Matrix Factorization
+
+**Key points**
+
+-   Our earlier models fail to account for an important source of variation related to the fact that groups of movies and groups of users have similar rating patterns. We can observe these patterns by studying the residuals and **converting our data into a matrix where each user gets a row and each movie gets a column**:
+
+$r_{u, i} = y_{u, i} - \hat{b}_i - \hat{b}_u,$
+
+where $y_{u, i}$ is the entry in row $u$ and column $i$. $r_{u,i}$ is the matrix.
+
+-   We can **factorize the matrix of residuals** $r$ into a vector $p$ and vector $q$, $r_{u, i} \approx p_u q_i$, allowing us to explain more of the variance using a model like this:
+
+$Y_{u, i} = \mu + b_i + b_u + p_u q_i + \epsilon_{i, j}$
+
+-   Because our example is more complicated, we can use **two factors to explain the structure and two sets of coefficients to describe users**:
+
+$Y_{u, i} = \mu + b_i + b_u + p_{u,1} q_{1,i} + p_{u,2} q_{2,i} + \epsilon_{i, j}$
+
+-   To estimate factors using our data instead of constructing them ourselves, we can use **principal component analysis (PCA) or singular value decomposition (SVD)**.
+
+**video 1**
+
+Matrix factorization is a widley used tool in machine learning. It is utilized in dactor analysis, singular value decompossition (SVD), and principal component analysis (PCA). Here we describe the concept in the context of movie recommendations
+
+the model so far looks like this
+
+$$
+Y_{u,i} = \mu + b_i + b_u + \epsilon_{u,i}
+$$
+
+this accounts for differences through movies and users $b_i$ and $b_u$, but fails to account for the relationship within groups of movies and groups of users.\
+we will discover these parameters by studying residuals
+
+$$
+r_{u,i} = y_{u,i} - \hat b_i - \hat b_u
+$$
+
+We can compute these residual for the model we fit in the previous section:
+
+```{r}
+r <- sweep(y - mu, 2, fit_movies$b_i_reg) - fit_users$colnames(r) <- with(movie_map, title[match(colnames(r), movieId)])
+```
+
+If the user and movie effect explains all the signal and $\epsilon$ are just noise then the residuals between movies should be independent from each other. We can see they are not from the three graphs produced in the code below.
+
+we see correlations between the Godfather and the Godfather, part II, as well as, between you've got mail and sleepless in seattle.
+
+by looking at the correlation between movies we can see a pattern
+
+```{r}
+cor(y[, c(m_1, m_2, m_3, m_4, m_5)], use="pairwise.complete") %>% 
+     knitr::kable()
+```
+
+there is a trend for people who liked gangster movie, likeing other gangster movies, and a trend from romcoms. the trend is negative for people rating romcoms who rated gangster movies highly and vice verse.
+
+This tells us there is a structure. But how do we model it?
+
+here is an illustration, using simulation of how we can ise some structure to predict $r_{ui}$ Suppose our risduals look like this
+
+```{r}
+set.seed(1)
+options(digits = 2)
+Q <- matrix(c(1 , 1, 1, -1, -1), ncol=1)
+rownames(Q) <- c(m_1, m_2, m_3, m_4, m_5)
+P <- matrix(rep(c(2,0,-2), c(3,5,4)), ncol=1)
+rownames(P) <- 1:nrow(P)
+
+X <- jitter(P%*%t(Q))
+X %>% knitr::kable(align = "c")
+
+```
+
+there seems to be a pattern here. in fact, we can see very strong correlation patterns:
+
+```{r}
+cor(X)
+```
+
+We can create vectors 1 and p, that can explain much of the structure we see. The q would look like this:
+
+`{t(p)} #>      1 2 3 4 5 6 7 8  9 10 11 12 #> [1,] 2 2 2 0 0 0 0 0 -2 -2 -2 -2`
+
+those that like gangster movies and dislike romance movies (coded as 2), those that like romance movies and dislike gangster movies coded as -2, and those who don't care (coded as ). So we can almost reconstruct r which has 60 values, with a couple of vectors totaling 17 values. Note that p and q are equivalent to the patterns and wheights we described in section 33.5.4.
+
+if $r$ contains the residuals for users $u = 1,...,12$ for movies $i = 1, ...,5$ we can write the following formula for our residuals
+
+$$
+r_{u,o} \approx p_u q_i
+$$
+
+with this we can modify our model to explain more of the variability:
+
+$$
+Y_{u,i} = \mu + b_i + b_u + p_u q_i + \epsilon_{u,i} 
+$$
+
+The structer found in the data is usually more complex than the simulation we did. For example we determined our movie $u$ fit into one of two genres. Our data has more than just gangster and romance movies. Here we present more complex simulation by adding a sixth movie, Scent of Woman.
+
+```{r}
+set.seed(1)
+options(digits = 2)
+m_6 <- "Scent of a Woman"
+Q <- cbind(c(1 , 1, 1, -1, -1, -1), 
+           c(1 , 1, -1, -1, -1, 1))
+rownames(Q) <- c(m_1, m_2, m_3, m_4, m_5, m_6)
+P <- cbind(rep(c(2,0,-2), c(3,5,4)), 
+           c(-1,1,1,0,0,1,1,1,0,-1,-1,-1))/2
+rownames(P) <- 1:nrow(X)
+
+X <- jitter(P%*%t(Q), factor=1)
+X %>% knitr::kable(align = "c")
+```
+
+we note that a second factor may not be needed to account for the fact some users like Al Pacino, while others dislike him or don't care. Notice that the overall structure of the correlation obtained from the simulation is not that far off from the real correlation.
+
+`{#>            Godfather Godfather2 Goodfellas    YGM      SS     SW} #> Godfather      1.000     0.8248      0.429 -0.284 -0.1132  0.378 #> Godfather2     0.825     1.0000      0.564 -0.269 -0.0201  0.345 #> Goodfellas     0.429     0.5643      1.000 -0.313 -0.2762  0.305 #> YGM           -0.284    -0.2689     -0.313  1.000  0.5461 -0.265 #> SS            -0.113    -0.0201     -0.276  0.546  1.0000 -0.284 #> SW             0.378     0.3445      0.305 -0.265 -0.2844  1.000`
+
+to explain this more complicated structure, we need two factors like this:
+
+```         
+t(q) 
+#>      Godfather Godfather2 Goodfellas You've Got Sleepless Scent
+#> [1,]         1          1          1         -1        -1    -1
+#> [2,]         1          1         -1         -1        -1     1
+```
+
+With first factor (the first column q) for coding gangster versus romance grooups and a second factor (the second column of q) to explain the Al Pacino vs no Al Pacino groups. We will also need two sets of coefficients to explain the variablility introduced by the 3x3 types of groups:
+
+```         
+t(p)
+#>       1 2 3 4 5 6 7 8  9 10 11 12
+#> [1,]  1 1 1 0 0 0 0 0 -1 -1 -1 -1
+#> [2,] -1 1 1 0 0 1 1 1  0 -1 -1 -1
+```
+
+The model with two factors has 36 parameters that can explain much of the variability in the 72 ratings:
+
+$$
+Y_{u,i} = \mu + b_i + b_u + p_{u,1} q_{1,i} + p_{u,2} q_{2,i} + \varepsilon_{u,i}
+$$
+
+Because we need to fit model to actual data, we permit $p$ and $q$ to be continous rather than discrete values as we used in the simulation. We do not define movies into gangster or romance instead we allow it to be a continuum. Because this is not a `lm` we need to use another algorithm to find the parameters that minimize the least squares. The winning algorithms for Netflix challenge fit a model similar to the above and used regularization to penalize for large values of p and q, rather than using least square. Implenting this approach is beyond the scope of this course
+
+```{r}
+train_small <- movielens %>% 
+     group_by(movieId) %>%
+     filter(n() >= 50 | movieId == 3252) %>% ungroup() %>% #3252 is Scent of a Woman used in example
+     group_by(userId) %>%
+     filter(n() >= 50) %>% ungroup()
+
+y <- train_small %>% 
+     dplyr::select(userId, movieId, rating) %>%
+     spread(movieId, rating) %>%
+     as.matrix()
+
+rownames(y)<- y[,1]
+y <- y[,-1]
+colnames(y) <- with(movie_titles, title[match(colnames(y), movieId)])
+
+y <- sweep(y, 1, rowMeans(y, na.rm=TRUE))
+y <- sweep(y, 2, colMeans(y, na.rm=TRUE))
+
+m_1 <- "Godfather, The"
+m_2 <- "Godfather: Part II, The"
+qplot(y[ ,m_1], y[,m_2], xlab = m_1, ylab = m_2)
+
+m_1 <- "Godfather, The"
+m_3 <- "Goodfellas"
+qplot(y[ ,m_1], y[,m_3], xlab = m_1, ylab = m_3)
+
+m_4 <- "You've Got Mail" 
+m_5 <- "Sleepless in Seattle" 
+qplot(y[ ,m_4], y[,m_5], xlab = m_4, ylab = m_5)
+
+cor(y[, c(m_1, m_2, m_3, m_4, m_5)], use="pairwise.complete") %>% 
+     knitr::kable()
+
+set.seed(1)
+options(digits = 2)
+Q <- matrix(c(1 , 1, 1, -1, -1), ncol=1)
+rownames(Q) <- c(m_1, m_2, m_3, m_4, m_5)
+P <- matrix(rep(c(2,0,-2), c(3,5,4)), ncol=1)
+rownames(P) <- 1:nrow(P)
+
+X <- jitter(P%*%t(Q))
+X %>% knitr::kable(align = "c")
+
+cor(X)
+
+t(Q) %>% knitr::kable(aling="c")
+
+P
+
+set.seed(1)
+options(digits = 2)
+m_6 <- "Scent of a Woman"
+Q <- cbind(c(1 , 1, 1, -1, -1, -1), 
+           c(1 , 1, -1, -1, -1, 1))
+rownames(Q) <- c(m_1, m_2, m_3, m_4, m_5, m_6)
+P <- cbind(rep(c(2,0,-2), c(3,5,4)), 
+           c(-1,1,1,0,0,1,1,1,0,-1,-1,-1))/2
+rownames(P) <- 1:nrow(X)
+
+X <- jitter(P%*%t(Q), factor=1)
+X %>% knitr::kable(align = "c")
+
+cor(X)
+
+t(Q) %>% knitr::kable(align="c")
+
+P
+
+six_movies <- c(m_1, m_2, m_3, m_4, m_5, m_6)
+tmp <- y[,six_movies]
+cor(tmp, use="pairwise.complete")
+```
+
+### Connection to SVD and PCA
+
+Singular value decomposition (SVD) and Principal Component Analysis (PCA) are complicated topics.
+
+SVD can be thought of as an algorithm that finds vectors p and q that permit us to write the matrix of residuals r with m rows and n columns in the following way:
+
+$$
+r_{u, i} = p_{u, 1} q_{1, i} + p_{u, 2} q_{2, i} + ... + p_{u, m} q_{m, i},
+$$
+
+with the variability of these terms decreasing and the p's uncorrelated to eachother.
+
+-   SVD also computes the variabilities so that we can know how much of the matrix's total variability is explained as we add new terms.
+
+-   the **vectors q are called the principal components** and the **vectors p are the user effects.**by using the principal components analysis (PCA), matrix factorization can capture structure in the data determined by user opinions about movies.
+
+```{r}
+y[is.na(y)] <- 0
+y <- sweep(y, 1, rowMeans(y))
+pca <- prcomp(y)
+
+fim(pcs$rotation)
+
+dim(pca$x)
+
+plot(pca$sdev)
+
+var_explained <- cumsum(pcs$sdev^2 / sum(pca$sdev^2))
+plot(var_explained)
+
+library(ggrepel)
+pcs <- data.frame(pca$rotation, name = colnames(y))
+  pcs |> ggplot(aes(PC1, PC2)) +
+    geom_point() +
+    geom_text_repel(aes(PC1, PC2, lablel = name),
+                    data = filter(pcs,
+                                  PC1 < -0.1 | PC1 > 0.1 | PC2 < -.075 |PC2 >0.1))
+  
+pcs |> select(name, PC1) |> arrange(desc(PC1)) |> slice(1:10)
+
+pcs |> select(name, PC1) |> arrange(desc(PC1)) |> slice(1:10)
+
+pcs |> select(name, PC2) |> arrange(desc(PC2)) |> slice(1:10)
+```
+
+## Comprehension Check - Matrix Factorization
+
+In this exercise set, we will be covering a topic useful for understanding matrix factorization: the singular value decomposition (SVD). SVD is a mathematical result that is widely used in machine learning, both in practice and to understand the mathematical properties of some algorithms. This is a rather advanced topic and to complete this exercise set you will have to be familiar with linear algebra concepts such as matrix multiplication, orthogonal matrices, and diagonal matrices.
+
+The SVD tells us that we can **decompose** an $N\times p$ matrix $Y$ with $p < N$ as
+
+$Y = U D V^{\top}$
+
+with $U$ and $V$ **orthogonal** of dimensions $N\times p$ and $p\times p$ respectively and $D$ a $p\times p$ **diagonal** matrix with the values of the diagonal decreasing:
+
+$d_{1,1} \geq d_{2,2} \geq \dots d_{p,p}$
+
+In this exercise, we will see one of the ways that this decomposition can be useful. To do this, we will construct a dataset that represents grade scores for 100 students in 24 different subjects. The overall average has been removed so this data represents the percentage point each student received above or below the average test score. So a 0 represents an average grade (C), a 25 is a high grade (A+), and a -25 represents a low grade (F). You can simulate the data like this:
+
+```{r}
+set.seed(1987)
+#if using R 3.6 or later, use `set.seed(1987, sample.kind="Rounding")` instead
+n <- 100
+k <- 8
+Sigma <- 64  * matrix(c(1, .75, .5, .75, 1, .5, .5, .5, 1), 3, 3) 
+m <- MASS::mvrnorm(n, rep(0, 3), Sigma)
+m <- m[order(rowMeans(m), decreasing = TRUE),]
+y <- m %x% matrix(rep(1, k), nrow = 1) + matrix(rnorm(matrix(n*k*3)), n, k*3)
+colnames(y) <- c(paste(rep("Math",k), 1:k, sep="_"),
+                 paste(rep("Science",k), 1:k, sep="_"),
+                 paste(rep("Arts",k), 1:k, sep="_"))
+```
+
+Our goal is to describe the student performances as succinctly as possible. For example, we want to know if these test results are all just a random independent numbers. Are all students just about as good? Does being good in one subject imply you will be good in another? How does the SVD help with all this? We will go step by step to show that with just three relatively small pairs of vectors we can explain much of the variability in this $100 \times 24$ dataset.
+
+1.  You can visualize the 24 test scores for the 100 students by plotting an image:
+
+```{r}
+my_image <- function(x, zlim = range(x), ...){
+	colors = rev(RColorBrewer::brewer.pal(9, "RdBu"))
+	cols <- 1:ncol(x)
+	rows <- 1:nrow(x)
+	image(cols, rows, t(x[rev(rows),,drop=FALSE]), xaxt = "n", yaxt = "n",
+			xlab="", ylab="",  col = colors, zlim = zlim, ...)
+	abline(h=rows + 0.5, v = cols + 0.5)
+	axis(side = 1, cols, colnames(x), las = 2)
+}
+
+my_image(y)
+```
+
+How would you describe the data based on this figure?
+
+-   [ ] A. The test scores are all independent of each other.
+-   [ ] B. The students that are good at math are not good at science.
+-   [ ] C. The students that are good at math are not good at arts.
+-   [x] D. The students that test well are at the top of the image and there seem to be three groupings by subject.
+-   [ ] E. The students that test well are at the bottom of the image and there seem to be three groupings by subject.
+
+2.  You can examine the correlation between the test scores directly like this:
+
+```{r}
+my_image(cor(y), zlim = c(-1,1))
+range(cor(y))
+axis(side = 2, 1:ncol(y), rev(colnames(y)), las = 2)
+```
+
+Which of the following best describes what you see?
+
+-   [ ] A. The test scores are independent.
+-   [ ] B. Test scores in math and science are highly correlated but scores in arts are not.
+-   [ ] C. There is high correlation between tests in the same subject but no correlation across subjects.
+-   [x] D. There is correlation among all tests, but higher if the tests are in science and math and even higher within each subject.
+
+3.  Remember that orthogonality means that $U^{\top}U$ and $V^{\top}V$ are equal to the identity matrix. This implies that we can also rewrite the decomposition as
+
+$Y V = U D \mbox{ or } U^{\top}Y = D V^{\top}$
+
+We can think of $YV$ and $U^{\top}V$ as two transformations of $Y$ that preserve the total variability of $Y$ since $U$ and $V$ are orthogonal.
+
+Use the function `svd()` to compute the SVD of `y`. This function will return $U$, $V$, and the diagonal entries of $D$.
+
+```{r}
+s <- svd(y)
+names(s)
+```
+
+You can check that the SVD works by typing:
+
+```{r}
+y_svd <- s$u %*% diag(s$d) %*% t(s$v)
+max(abs(y - y_svd))
+```
+
+Compute the sum of squares of the columns of $Y$ and store them in `ss_y`. Then compute the sum of squares of columns of the transformed $YV$ and store them in `ss_yv`. Confirm that `sum(ss_y)` is equal to `sum(ss_yv)`.
+
+What is the value of `sum(ss_y)` (and also the value of `sum(ss_yv))`?
+
+```{r}
+ss_y <- apply(y^2, 2, sum)
+ss_yv <- apply((y%*%s$v)^2, 2, sum)
+sum(ss_y)
+sum(ss_yv)
+```
+
+4.  We see that the total sum of squares is preserved. This is because $V$ is orthogonal. Now to start understanding how $YV$ is useful, plot `ss_y` against the column number and then do the same for `ss_yv`.
+
+What do you observe?
+
+```{r}
+plot(ss_y)
+plot(ss_yv)
+```
+
+-   [ ] A. `ss_y` and `ss_yv` are decreasing and close to 0 for the 4th column and beyond.
+-   [x] B. `ss_yv` is decreasing and close to 0 for the 4th column and beyond.
+-   [ ] C. `ss_y` is decreasing and close to 0 for the 4th column and beyond.
+-   [ ] D. There is no discernible pattern to either `ss_y` or `ss_yv`.
+
+5.  Now notice that we didn't have to compute `ss_yv` because we already have the answer. How? Remember that $YV = UD$ and because $U$ is orthogonal, we know that the sum of squares of the columns of $UD$ are the diagonal entries of $D$ squared. Confirm this by plotting the square root of `ss_yv` versus the diagonal entries of $D$.
+
+```{r}
+data.frame(x = sqrt(ss_yv), y = s$d) |> 
+ggplot(aes(x,y)) +
+geom_point()
+```
+
+Which of these plots is correct?
+
+-   [x] A.
+
+![](images/ss_yv%20versus%20D_A.png)
+
+-   [ ] B.
+
+![](images/ss_yv%20versus%20D_B.png)
+
+-   [ ] C.
+
+![](images/ss_yv%20versus%20D_C.png)
+
+-   [ ] D.
+
+![](images/ss_yv%20versus%20D_D.png)
+
+6.  So from the above we know that the sum of squares of the columns of $Y$ (the total sum of squares) adds up to the sum of `s$d^2` and that the transformation $YV$ gives us columns with sums of squares equal to `s$d^2`. Now compute the percent of the total variability that is explained by just the first three columns of $YV$.
+
+What proportion of the total variability is explained by the first three columns of $YV$?
+
+```{r}
+sum(s$d[1:3]^2) / sum(s$d^2)
+```
+
+7.  Before we continue, let's show a useful computational trick to avoid creating the matrix `diag(s$d)`. To motivate this, we note that if we write $U$ out in its columns $[U_1, U_2, \dots, U_p]$ then $UD$ is equal to
+
+$UD = [U_1 d_{1,1}, U_2 d_{2,2}, \dots, U_p d_{p,p}]$
+
+Use the `sweep` function to compute $UD$ without constructing `diag(s$d)` or using matrix multiplication.
+
+Which code is correct?
+
+-   [ ] A. `identical(t(s$u %*% diag(s$d)), sweep(s$u, 2, s$d, FUN = "*"))`
+
+-   [x] B. `identical(s$u %*% diag(s$d), sweep(s$u, 2, s$d, FUN = "*"))`
+
+-   [ ] C. `identical(s$u %*% t(diag(s$d)), sweep(s$u, 2, s$d, FUN = "*"))`
+
+-   [ ] D. `identical(s$u %*% diag(s$d), sweep(s$u, 2, s, FUN = "*"))`
+
+8.  We know that $U_1 d_{1,1}$, the first column of $UD$, has the most variability of all the columns of $UD$. Earlier we looked at an image of $Y$ using `my_image(y)`, in which we saw that the student to student variability is quite large and that students that are good in one subject tend to be good in all. This implies that the average (across all subjects) for each student should explain a lot of the variability. Compute the average score for each student, plot it against $U_1 d_{1,1}$, and describe what you find.
+
+What do you observe?
+
+```{r}
+plot(s$u[,1] * s$d[1], rowMeans(y))
+```
+
+-   [ ] A. There is no relationship between the average score for each student and $U_1 d_{1,1}$.
+-   [ ] B. There is an exponential relationship between the average score for each student and $U_1 d_{1,1}$.
+-   [x] C. There is a linear relationship between the average score for each student and $U_1 d_{1,1}$.
+
+9.  We note that the signs in SVD are arbitrary because:
+
+$U D V^{\top} = (-U) D (-V)^{\top}$
+
+With this in mind we see that the first column of $UD$ is almost identical to the average score for each student except for the sign.
+
+This implies that multiplying 𝑌 by the first column of 𝑉 must be performing a similar operation to taking the average. Make an image plot of 𝑉 and describe the first column relative to others and how this relates to taking an average.
+
+How does the first column relate to the others, and how does this relate to taking an average?
+
+```{r}
+my_image(s$v)
+```
+
+-   [ ] A. The first column is very variable, which implies that the first column of YV is the sum of the rows of Y multiplied by some non-constant function, and is thus not proportional to an average.
+-   [ ] B. The first column is very variable, which implies that the first column of YV is the sum of the rows of Y multiplied by some non-constant function, and is thus proportional to an average.
+-   [x] C. The first column is very close to being a constant, which implies that the first column of YV is the sum of the rows of Y multiplied by some constant, and is thus proportional to an average.
+-   [ ] D. The first three columns are all very close to being a constant, which implies that these columns are the sum of the rows of Y multiplied by some constant, and are thus proportional to an average.
+
+10. We already saw that we can rewrite $UD$ as
+
+$U_1 d_{1,1} + U_2 d_{2,2} + \dots + U_p d_{p,p}$
+
+with $U_j$ the j-th column of $U$. This implies that we can rewrite the entire SVD as:
+
+$Y = U_1 d_{1,1} V_1 ^{\top} + U_2 d_{2,2} V_2 ^{\top} + \dots + U_p d_{p,p} V_p ^{\top}$
+
+with $V_j$ the jth column of $V$. Plot $U_1$, then plot $V_1^{\top}$ using the same range for the y-axis limits, then make an image of $U_1 d_{1,1} V_1 ^{\top}$ and compare it to the image of $Y$. Hint: use the `my_image()` function defined above. Use the `drop=FALSE` argument to assure the subsets of matrices are matrices.
+
+```{r}
+plot(s$u[,1], ylim = c(-0.25, 0.25))
+plot(s$v[,1], ylim = c(-0.25, 0.25))
+with(s, my_image((u[, 1, drop=FALSE]*d[1]) %*% t(v[, 1, drop=FALSE])))
+my_image(y)
+```
+
+11. We see that with just a vector of length 100, a scalar, and a vector of length 24, we can actually come close to reconstructing the a $100 \times 24$ matrix. This is our first matrix factorization:
+
+$Y \approx d_{1,1} U_1 V_1^{\top}$
+
+In the exercise in Q6, we saw how to calculate the percent of total variability explained. However, our approximation only explains the observation that good students tend to be good in all subjects. Another aspect of the original data that our approximation does not explain was the higher similarity we observed within subjects. We can see this by computing the difference between our approximation and original data and then computing the correlations. You can see this by running this code:
+
+```{r}
+resid <- y - with(s,(u[, 1, drop=FALSE]*d[1]) %*% t(v[, 1, drop=FALSE]))
+my_image(cor(resid), zlim = c(-1,1))
+axis(side = 2, 1:ncol(y), rev(colnames(y)), las = 2)
+```
+
+Now that we have removed the overall student effect, the correlation plot reveals that we have not yet explained the within subject correlation nor the fact that math and science are closer to each other than to the arts. So let's explore the second column of the SVD.
+
+Repeat the previous exercise (Q10) but for the second column: Plot $U_2$, then plot $V_2^{\top}$ using the same range for the y-axis limits, then make an image of $U_2 d_{2,2} V_2 ^{\top}$ and compare it to the image of `resid`.
+
+```{r}
+plot(s$u[,2], ylim = c(-0.5, 0.5))
+plot(s$v[,2], ylim = c(-0.5, 0.5))
+with(s, my_image((u[, 2, drop=FALSE]*d[2]) %*% t(v[, 2, drop=FALSE])))
+my_image(resid)
+```
+
+12. The second column clearly relates to a student's difference in ability in math/science versus the arts. We can see this most clearly from the plot of `s$v[,2]`. Adding the matrix we obtain with these two columns will help with our approximation:
+
+$Y \approx d_{1,1} U_1 V_1^{\top} + d_{2,2} U_2 V_2^{\top}$
+
+We know it will explain `sum(s$d[1:2]^2)/sum(s$d^2) * 100` percent of the total variability. We can compute new residuals like this:
+
+```{r}
+resid <- y - with(s,sweep(u[, 1:2], 2, d[1:2], FUN="*") %*% t(v[, 1:2]))
+my_image(cor(resid), zlim = c(-1,1))
+axis(side = 2, 1:ncol(y), rev(colnames(y)), las = 2)
+```
+
+and see that the structure that is left is driven by the differences between math and science. Confirm this by first plotting $U_3$, then plotting $V_3^{\top}$ using the same range for the y-axis limits, then making an image of $U_3 d_{3,3} V_3 ^{\top}$ and comparing it to the image of `resid`.
+
+```{r}
+plot(s$u[,3], ylim = c(-0.5, 0.5))
+plot(s$v[,3], ylim = c(-0.5, 0.5))
+with(s, my_image((u[, 3, drop=FALSE]*d[3]) %*% t(v[, 3, drop=FALSE])))
+my_image(resid)
+```
+
+13. The third column clearly relates to a student's difference in ability in math and science. We can see this most clearly from the plot of `s$v[,3]`. Adding the matrix we obtain with these two columns will help with our approximation:
+
+$Y \approx d_{1,1} U_1 V_1^{\top} + d_{2,2} U_2 V_2^{\top} + d_{3,3} U_3 V_3^{\top}$
+
+We know it will explain: `sum(s$d[1:3]^2)/sum(s$d^2) * 100` percent of the total variability. We can compute new residuals like this:
+
+```{r}
+resid <- y - with(s,sweep(u[, 1:3], 2, d[1:3], FUN="*") %*% t(v[, 1:3]))
+my_image(cor(resid), zlim = c(-1,1))
+axis(side = 2, 1:ncol(y), rev(colnames(y)), las = 2)
+```
+
+We no longer see structure in the residuals: they seem to be independent of each other. This implies that we can describe the data with the following model:
+
+$Y =  d_{1,1} U_1 V_1^{\top} + d_{2,2} U_2 V_2^{\top} + d_{3,3} U_3 V_3^{\top} + \varepsilon$
+
+with $\varepsilon$ a matrix of independent identically distributed errors. This model is useful because we summarize of $100 \times 24$ observations with $3 \times (100+24+1) = 375$ numbers.
+
+Furthermore, the three components of the model have useful interpretations:
+
+1 - the overall ability of a student
+
+2 - the difference in ability between the math/sciences and arts
+
+3 - the remaining differences between the three subjects.
+
+The sizes $d_{1,1}, d_{2,2}$ and $d_{3,3}$ tell us the variability explained by each component. Finally, note that the components $d_{j,j} U_j V_j^{\top}$ are equivalent to the jth principal component.
+
+Finish the exercise by plotting an image of $Y$, an image of $d_{1,1} U_1 V_1^{\top} + d_{2,2} U_2 V_2^{\top} + d_{3,3} U_3 V_3^{\top}$ and an image of the residuals, all with the same `zlim`.
+
+```{r}
+y_hat <- with(s,sweep(u[, 1:3], 2, d[1:3], FUN="*") %*% t(v[, 1:3]))
+my_image(y, zlim = range(y))
+my_image(y_hat, zlim = range(y))
+my_image(y - y_hat, zlim = range(y))
+```
+
+## 
+
+# 7 breast cancer final assessment:
+
+```{r}
+options(digits = 3)
+library(matrixStats)
+library(tidyverse)
+library(caret)
+library(dslabs)
+data(brca)
+```
+
+1.  Question 1: Dimensions and properties
+
+```{r}
+#how many samples are in the data set
+
+as.tibble(brca) |> dim()
+
+#how many predictors are in the matrix
+data.frame(brca) |> dim()
+
+#what percent of the cancers are melignant
+
+mean(brca$y == "M")
+
+#which col has the highest mean
+
+which.max(colMeans(brca$x))
+
+#which col has the lowest stdv
+data.frame(brca$x) |> summarize(across(where(is.numeric), sd)) |> 
+  pivot_longer(cols = everything(), names_to = "col", values_to = "sd") |> 
+  mutate(col_number = (1:length(col))) |> 
+  slice_min(sd) |> pull(col_number)
+
+
+which.min(colSds(brca$x))
+```
+
+2.  Use `sweep()` two times to scale each column: subtract the column means of `brca$x`, then divide by the column standard deviations of
+
+```{r}
+x_cent <- sweep(brca$x, 2, colMeans(brca$x))
+x_scaled <-  sweep(x, 2, colSds(brca$x), FUN = "/")
+
+sd(x_scaled[,1])
+median(x_scaled[,1])
+
+```
+
+3.PCA: proportion of variance
+
+Perform a principal component analysis of the scaled matrix.
+
+What proportion of variance is explained by the first principal component?
+
+How many principal components are required to explain at least 90% of the variance?
+
+```{r}
+pca <- prcomp(x_scaled)
+summary(pca)
+```
+
+4.  Plot the first two principal components with color representing tumor type (benign/malignant). 
+
+    Which of the following is true?
+
+```{r}
+data.frame(pca$x[, 1:2], type = brca$y)|> 
+  ggplot(aes(PC1, PC2, color = type)) +
+  geom_point()
+```
+
+5.  Make a boxplot of the first 10 PCs grouped by tumor type.
+
+    Which PCs are significantly different enough by tumor type that there is no overlap in the interquartile ranges (IQRs) for benign and malignant samples?
+
+```{r}
+data.frame(pca$x[,1:10], type = brca$y) |> 
+  pivot_longer(1:10, names_to = "PC", values_to = "value") |> 
+  ggplot(aes(PC, value, fill = type)) +
+  geom_boxplot()
+```
+
+## Breast Cancer Project - Part 3
+
+Set the seed to 1, then create a data partition splitting `brca$y` and the *scaled* version of the `brca$x` matrix into a 20% test set and 80% train using the following code:
+
+```{r}
+# set.seed(1) if using R 3.5 or earlier
+set.seed(1, sample.kind = "Rounding")    # if using R 3.6 or later
+test_index <- createDataPartition(brca$y, times = 1, p = 0.2, list = FALSE)
+test_x <- x_scaled[test_index,]
+test_y <- brca$y[test_index]
+train_x <- x_scaled[-test_index,]
+train_y <- brca$y[-test_index]
+```
+
+You will be using these training and test sets throughout the exercises in Parts 3 and 4. Save your models as you go, because at the end, you'll be asked to make an ensemble prediction and to compare the accuracy of the various models!
+
+6.  Training and test sets
+
+Check that the training and test sets have similar proportions of benign and malignant tumors.
+
+What proportion of the training set is benign?
+
+```{r}
+mean(train_y == "B")
+mean(test_y == "B")
+```
+
+7.  Set the seed to 1, then fit a logistic regression model on the training set with `caret::train()` using all predictors. Ignore warnings about the algorithm not converging. Make predictions on the test set.
+
+    What is the accuracy of the logistic regression model on the test set?
+
+```{r}
+library(caret)
+linreg <- train(train_x, train_y, method = "glm")
+glm_preds <- predict(linreg, test_x)
+mean(pred == test_y)
+```
+
+8.  Set the seed to 5, then fit a loess model on the training set with the **caret** package. You will need to install the **gam** package if you have not yet done so. Use the default tuning grid. This may take several minutes; ignore warnings. Generate predictions on the test set.
+
+    What is the accuracy of the loess model on the test set?
+
+```{r}
+set.seed(5)
+loess_train <- train(train_x, train_y, method = "gamLoess")
+loess_preds <- predict(loess_train, test_x)
+
+mean(preds == test_y)
+```
+
+## Breast Cancer Project - Part 4
+
+9.  K-nearest neighbors model
+
+Set the seed to 7, then train a k-nearest neighbors model on the training set using the **caret** package. Try odd values of $k$ from 3 to 21. Use the final model to generate predictions on the test set.
+
+What is the final value of $k$ used in the model?
+
+```{r}
+set.seed(7)
+
+
+tuning <- data.frame(k = seq(3, 21, 2))
+train_knn <- train(train_x, train_y,
+      method = "knn", 
+      tuneGrid = tuning)
+train_knn$bestTune
+
+knn_preds <- predict(train_knn, test_x)
+
+mean(preds == test_y)
+```
+
+9.  Set the seed to 9, then train a random forest model on the training set using the **caret** package. Test `mtry` values of `c(3, 5, 7, 9)`. Use the argument `importance = TRUE` so that feature importance can be extracted. Generate predictions on the test set.
+
+    Note: please use `c(3, 5, 7, 9)` instead of `seq(3, 9, 2)` in `tuneGrid`.
+
+    What value of `mtry` gives the highest accuracy?
+
+```{r}
+set.seed(9)
+tuning <- data.frame(mtry = c(3,5,7,9))
+
+train_rf <- train(train_x, train_y,
+                  method = "rf",
+                  tuneGrid = tuning,
+                  importance = TRUE)
+train_rf$bestTune
+```
+
+What is the accuracy of the random forest model on the test set?
+
+```{r}
+rf_preds <- predict(train_rf, test_x)
+mean(preds == test_y)
+```
+
+What is the most important variable in the random forest model?
+
+Be sure to enter the variable name exactly as it appears in the dataset.
+
+```{r}
+varImp(train_rf)
+```
+
+10. Consider the top 10 most important variables in the random forest model. 
+
+    Which set of features is most important for determining tumor type?
+
+6 of the top 10 most important predictors are worst values.
+
+```{r}
+varImp(train_rf)
+```
+
+11. Create an ensemble using the predictions from the 4 models created in the previous exercises: logistic regression, loess, k-nearest neighbors, and random forest. Use the ensemble to generate a majority prediction of the tumor type (if more than 50% of the models suggest the tumor is malignant, predict malignant).
+
+    What is the accuracy of the ensemble prediction?
+
+```{r}
+ensemble <- cbind(glm_preds == "M", loess_preds == "M", 
+                   knn_preds == "M", rf_preds == "M")
+ensemble_preds <- ifelse(rowMeans(ensemble) > 0.5, "M", "B")
+mean(ensemble_preds == test_y)
+
+```
+
+11. 
+
+0.0/1.0 point (graded)
+
+Make a table of the accuracies of the 4 models and the accuracy of the ensemble model.
+
+Which of these models has the highest accuracy?
+
+```{r}
+model <- c("glm", "loess", "knn", "rf", "ensemble")
+accuracy <- colMeans(
+  cbind(glm_preds == test_y, loess_preds == test_y,
+        knn_preds == test_y, rf_preds == test_y , ensemble_preds == test_y)
+  )
+
+data.frame(model = model, Accuracy = accuracy)
+```
+
+```{r}
+models <- c("Logistic regression", "Loess", "K nearest neighbors", 
+            "Random forest", "Ensemble")
+accuracy <- c(mean(glm_preds == test_y),
+              mean(loess_preds == test_y),
+              mean(knn_preds == test_y),
+              mean(rf_preds == test_y),
+              mean(ensemble_preds == test_y))
+data.frame(Model = models, Accuracy = accuracy)
+```
