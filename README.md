@@ -10,7 +10,7 @@ In this portfolio I included labs from my computer science course work, which is
 
 ### Course Work
 
-I.  Overview of Coursework and Learning Targets
+I.  Overview of Coursework and Learning Targets.
 
 II. 
 
