@@ -1,0 +1,395 @@
+---
+title: "Data Importing Cleaning, and Data Visualization"
+format: 
+  html:
+    self-contained: true
+editor: visual
+execute:
+  warning: false
+code-fold: true
+theme: mint
+---
+
+# Demonstration table 
+
++-----------------------------------------------------------+----------------------------------------+
+| Skill                                                     | Problems Demonstrated                  |
++===========================================================+========================================+
+| I can modify existing variables and create new            | -   Hip Hop data set step 4.           |
+| variables in a dataframe for a variety of data types      |                                        |
+| (e.g., numeric, integer, character, factor, date).        | -   Rodent Ecological Study: problem 3 |
++-----------------------------------------------------------+----------------------------------------+
+| I can find summaries of variables across multiple groups. | -   Baby Names data set final table    |
++-----------------------------------------------------------+----------------------------------------+
+|                                                           |                                        |
++-----------------------------------------------------------+----------------------------------------+
+|                                                           |                                        |
++-----------------------------------------------------------+----------------------------------------+
+|                                                           |                                        |
++-----------------------------------------------------------+----------------------------------------+
+
+: Index of Examples
+
+# Hip-hop data set
+
+```{r setup_HipHop, include=FALSE}
+library(tidyverse)
+library(here)
+```
+
+```{r load.data, include=FALSE}
+hiphop <- read_csv(here::here("supporting_artifacts", "ref.work",
+                              "lab3", "hiphop.csv"))
+
+```
+
+```{r intro, include = FALSE}
+str(hiphop)
+#this was used to observe the variable types but was not helpful to indlude in a report so include was set to false. 
+```
+
+## 1. Introduction:
+
+The data set analyzed in today's lab is from a project that aimed to predict music taste based on how familiar a person is with 64 words from African American English. The data set was complied by asking participants to report their familiarity, on a scale from 1 to 6, for a set of 64 words.
+
+## 2. what are the rows?
+
+A row is created for each participant-word pairing.
+
+## 3. What are missing values replaced with?
+
+Missing values were replaced with mean values. This is a good idea because it prevents outlying variables from over influencing the distribution of the data set, but it is an assumption.
+
+## 4. cleaning data
+
+```{r clean_data}
+hiphop_clean <- hiphop |> 
+  mutate(
+    across(where(is.character), as.factor)
+    ) 
+```
+
+## 5. how many unique AAE words are there.
+
+```{r unique_words}
+hiphop_clean |> 
+  distinct(word, .keep_all = TRUE) |> 
+  count()
+```
+
+## 6. white and non-white factor.
+
+```{r white_variable}
+hiphop_w <- hiphop_clean |> 
+  mutate(
+    white = if_else(ethnic == "white", "white", "not white")
+  )
+
+```
+
+## 7. Demographics
+
+To investigate the demographics of the participants I created a summary for all of the data relevant to demographics (sex, age, and ethnic). I also counted the total number of unique combinations of sex, age, and ethnicity by using the n(row) function to get 47. I did not use the count function because I did not want the mutate argument build in to the code.
+
+```{r demo}
+demo <- hiphop_clean |> 
+  distinct(subj, .keep_all = TRUE) |> 
+  select(sex, age, ethnic)|> 
+  mutate(sex = as.factor(sex),
+         ethnic = as.factor(ethnic)) |> 
+  select(sex, age, ethnic)
+demo |> 
+  summary()
+ 
+demo <- demo |> 
+  distinct(sex, age, ethnic, .keep_all = TRUE)
+  
+demo |> 
+  count()
+```
+
+## 8.
+
+### Demographic Plots
+
+Visualization of data set demographics by sex, age, and ethnicity.
+
+```{r demographic_plots}
+#|plot_position: center
+ggplot(data = demo) +
+  geom_bar(
+    mapping = aes(x = age, fill = sex),
+    show.legend = FALSE
+    ) +
+  facet_wrap(~sex, nrow = 2) +
+  ylab("Frequency")
+            
+ggplot(data = hiphop_w) +
+  geom_bar(mapping = aes(x = white, 
+                         fill = sex),
+           show.legend = FALSE) +
+  facet_wrap(~sex, nrow = 2)+
+  ylab("Frequency")
+```
+
+### Familiar words
+
+```{r familiar}
+
+familiar <- hiphop_clean |> 
+  filter(age < 20) |> 
+  select(word,familiarity) |> 
+  group_by(word) |> 
+  summarise(mean_fam = mean(familiarity))
+familiar |> 
+  slice_max(mean_fam)
+
+familiar |> 
+  slice_min(mean_fam)
+
+familiar <- hiphop_w |> 
+ filter(white == "not white",
+        sex == "Female") |> 
+ select(word, familiarity) |> 
+ group_by(word) |> 
+ summarise(mean_fam = mean(familiarity))
+
+familiar |> 
+ slice_max(mean_fam) |> 
+  print()
+familiar |> 
+ slice_min(mean_fam)
+ 
+familiar <- hiphop_w |> 
+ filter(white == "white",
+        age > 30,
+        sex == "Male") |> 
+ select(word, familiarity) |> 
+ group_by(word) |> 
+   summarise(mean_fam = mean(familiarity))
+
+familiar |> 
+   slice_max(mean_fam)
+  
+familiar |> 
+   slice_min(mean_fam)
+```
+
+-   People under 20 were most familiar with "off the hook" and least familiar with "catch the vapors".
+
+-   non-white women were most familiar with "feel me" and least familiar with "The Nation", "dukey rope", "plex", and "rollie".
+
+-   white men over 30 were most familiar with "feel me" and least familiar with a list of 25 words including "breezy", "break someone out", "catch the vapors" and 22 other words.
+
+### Justin Bieber?
+
+```{r justin}
+hiphop_clean |> 
+  distinct(subj, .keep_all = TRUE) |> 
+  filter(age %in% 17:23,
+         city %in% 10000:60000,
+         sex == "Male",
+         ethnic == "white") |> 
+  slice_max(order_by = bieber, n = 1) |> 
+  select(subj)
+
+```
+
+If Justin was in this study he would be participant #17.
+
+# Rodent Ecological Study: 
+
+The Portal Project is a long-term ecological study being conducted near Portal, AZ. Since 1977, the site has been used to study the interactions among rodents, ants and plants and their respective responses to climate. To study the interactions among organisms, we experimentally manipulate access to 24 study plots. This study has produced over 100 scientific papers and is one of the longest running ecological studies in the U.S.
+
+We will be investigating the animal species diversity and weights found within plots at the Portal study site. The dataset is stored as a comma separated value (CSV) file. Each row holds information for a single animal, and the columns represent:
+
+## 1. revisit lab 2
+
+```{r setup_RodentEcologicalStudy, include = FALSE}
+rm(list = ls())
+library(tidyverse)
+library(forcats)
+library(lubridate)
+```
+
+```{r data, include = FALSE}
+surveys <- read_csv(here::here("supporting_artifacts","ref.work", 
+                               "Lab5","surveys.csv"))
+```
+
+```{r speicie.V.weight}
+surveys |> 
+  ggplot(
+    data = surveys,
+         mapping = 
+           aes(y = fct_reorder(species, weight, .desc = FALSE),
+               x = weight)
+    ) +
+  geom_jitter(mapping = aes(color = species), 
+              alpha = .1, show.legend = FALSE) +
+  geom_boxplot(outlier.shape = NA) +
+  labs(title = "Distribution of Weight by Species", y = NULL)
+```
+
+## 2.Time-Series Plot
+
+```{r time_series}
+surveys_clean <- surveys |> 
+  mutate(year = year(date),
+         genus = as_factor(genus)) |> 
+  group_by(genus, year) |> 
+  summarise(mean_wt = mean(weight, na.rm = TRUE)) |> 
+  ungroup()
+
+surveys_clean |> filter(!is.na(year)) |> 
+  ggplot(mapping = aes(year, mean_wt, color = fct_reorder2(genus, year, mean_wt))) +
+  geom_line() +
+  labs(color = "Genus")+
+  ylab("mean weight (g)") +
+  ggtitle("Time Series of Genus Weight in Years") +
+  theme(legend.box.background = element_rect(fill = "grey"))
+  
+
+```
+
+## 3.Captures of the Week
+
+```{r daily_comparison}
+day_levels <- 
+  c("Mon","Tue", "Wed", "Thu", "Fri", "Sat", "Sun" )
+
+surveys_clean <- surveys |> 
+  mutate(date = make_date(date),
+         days = wday(date, label = TRUE)) |>
+  select(taxa, days) |> 
+  group_by(days) |> 
+  summarize(captures = n()) |> 
+  filter(days != "NA")
+
+surveys_clean |> 
+  ggplot(
+    mapping = aes(fct_relevel(days, day_levels), captures,
+                  fill = fct_relevel(days, day_levels))
+    ) +
+  geom_col(show.legend = FALSE) +
+  scale_x_discrete(drop = TRUE)+
+  coord_flip() +
+  labs(y = "Number of Rodents Captured", x = NULL)
+  
+```
+
+## 2. weekend
+
+```{r weekend}
+surveys_clean <- surveys_clean |> 
+  mutate(days = fct_collapse(days, 
+                             weekdays = c("Mon","Tue", "Wed",
+                                          "Thu", "Fri"),
+                             weekend = c("Sat", "Sun"))) |> 
+  group_by(days) |> 
+  summarise(AverageCaptures = mean(captures))
+
+surveys_clean |> 
+  ggplot(mapping = aes(
+    fct_reorder(days, AverageCaptures, .desc = FALSE),
+    AverageCaptures)) +
+  geom_col(fill = c("blue", "yellow")) +
+  scale_x_discrete(drop = TRUE) +
+  coord_flip() +
+  labs(caption = "weekend = saturday + sunday", 
+       y = "Mean Number of Rodents Captured Per Day",
+       x = NULL)
+```
+
+# Baby Name Data Set:
+
+This data set includes 4 columns: Name, Year, Sex, State, Count with 192,825 entries. The following section works through
+
+```{r set_up}
+rm(list = ls())
+library(tidyverse)
+bb_names <- read_csv(here::here("supporting_artifacts", "ref.work", "lab9", "StateNames_A.csv"))
+bb_names <- bb_names |> rename("Sex" = "Gender")
+```
+
+# 1 Creating table 
+
+This table takes a closer look at babies who received the name Allison and if their Sex was Male or Female.
+
+```{r table}
+bb_clean <- bb_names |> filter(Name == "Allison") |> 
+  group_by(Year, Sex) |> 
+  summarize(n = sum(Count))
+
+bb_clean <- bb_clean |>
+  pivot_wider(names_from = Sex, values_from = n, values_fill = 0) |> 
+  rename("Female" = "F", "Male" = "M") 
+```
+
+# 2 Creating Visual
+
+Graph Frequency of the Name Allison For females over the years.
+
+```{r visial}
+bb_clean <- bb_clean |> select(Year, Female)
+
+bb_clean|> ggplot(mapping = aes(x = Year, y = Female)) + 
+  geom_point(color = "darkgreen") +
+  geom_line()+
+  labs(title = "Number of Babies Assigned Female At Birth Named Allison", y = NULL) +
+  theme(plot.title = element_text(size = 14))
+```
+
+Creating a Linear Model based to create $y = mx + b$ out putting a $\hat y$ for frequency based on the year.
+
+```{r lm}
+bb_lm <- bb_clean |> lm(Female ~ Year, data = _)
+bb_lm
+```
+
+The result:\
+Number of babies named Allison and assigned female at birth = 1042 - 1.353 \* year
+
+```{r}
+bb_lm |> broom::augment() |> 
+  ggplot(aes(x = Year, y = .resid)) +
+  geom_point(color = "darkmagenta") +
+  labs(Title = "Residuals Based on Linear Model", y = NULL) +
+  theme(plot.title = element_text(hjust = 0.5, size = 14) )
+
+broom::glance(bb_lm) |> select(r.squared)
+```
+
+**Interpretation of the Data.** \
+The name Alison has been trending down in popularity since 1997. A linear model that models this trend predict lower than the number of babies named Alison in more recent years. Rare names are cool and it seems like people might be catching on based on the residuals. Also, with r squared value of 0.58 we can not place too much emphasis on the correlation of this trend.
+
+# 5. Investigating Overlooked Factor. 
+
+Babies can receive the same name with different spelling. the following code looks at the distribution of Alan, Allan, and Allen.
+
+```{r}
+bb_clean <- bb_names |> filter(
+  Name %in% c("Alan", "Allan", "Allen"),
+  State == "CA" | State == "PA",
+  Year == 2000,
+  Sex == "M"
+  )
+
+bb_clean <- bb_clean |> 
+  group_by(State, Name) |> 
+  summarize(n = sum(Count))
+
+bb_clean |> 
+  pivot_wider(names_from = Name, values_from = n, 
+              names_prefix = "Number spelled ",
+              values_fill = 0)
+
+bb_clean |> group_by(State) |> 
+  mutate(percent = n/sum(n)*100) |> 
+  select(Name, State, percent) |> 
+  pivot_wider(names_from = Name, values_from = percent,
+              names_prefix = "Percent spelled ",
+              values_fill = 0)
+```
+
+In California and in Pennsylvania the the spelling Allan had the lowest percent both states.
