@@ -18,6 +18,45 @@ library(tidyverse)
 fish <- read_csv(here::here("supporting_artifacts", "ref.work", "lab7", "BlackfootFish.csv" ))
 ```
 
+```{r}
+#| label: fig-msleep
+#| warning: false
+#| out-width: 60%
+
+qplot(msleep$sleep_total)
+
+```
+
+reference: @fig-msleep
+
+## tables
+
+```{r}
+#| label: tbl-msleep
+#| tbl-cap: sleep time # adds caption to the figure. with out a cap it renders oddly.
+#| echo: false #gets rid code in the render
+library(gt)
+
+msleep |> 
+  group_by(vore) |> 
+  summarize(Count = n (),
+            avg_sleep = mean(sleep_total,
+                             na.rm = TRUE)) |> 
+  gt()
+```
+
+reference: @tbl-msleep
+
+## callouts
+
+using a fence
+
+::: {#nte-mynote .callout-note}
+check out this note!
+:::
+
+reference: @nte-mynote
+
 ## Missing data
 
 ### Missing data table
@@ -154,3 +193,5 @@ rescale_column <- function(df, var) {
 ```{r}
 rescale_column(fish, c(length, weight))
 ```
+
+.

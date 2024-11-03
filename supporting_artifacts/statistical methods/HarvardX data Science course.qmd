@@ -322,7 +322,7 @@ galton_heights %>%
 
     -   
 
-        ![examples of bivariate normal distributions](images/Screen%20Shot%202023-11-02%20at%208.04.03%20PM.png){alt="examples of bivariate normal distributions" width="335"}
+        ![examples of bivariate normal distributions](images/Screen%20Shot%202023-11-02%20at%208.04.03%20PM.png){width="335"}
 
     -   If x is a normalluy distributed random variable, and Y is normally distrbuted random ariable, and for any stratum of X, say X = x, Y is approximately normal in that stratum, then the pair is approximately bivariate normal.
 
@@ -337,7 +337,7 @@ galton_heights %>%
   facet_wrap(~z_father)
 ```
 
-![Key equations](images/Screen%20Shot%202023-11-02%20at%208.12.22%20PM.png){alt="Key equations" width="746"}
+![Key equations](images/Screen%20Shot%202023-11-02%20at%208.12.22%20PM.png){width="746"}
 
 -   Equation 1: for a fixed value of X (X = x) what is the expected value of Y
 

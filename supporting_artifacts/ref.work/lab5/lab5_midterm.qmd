@@ -43,12 +43,13 @@ surveys |>
 
 ```{r time_series}
 surveys_clean <- surveys |> 
-  mutate(year = year(date)) |> 
+  mutate(year = year(date),
+         genus = as_factor(genus)) |> 
   group_by(genus, year) |> 
-  summarise(mean_wt = mean(weight), .keep_all = TRUE) |> 
+  summarise(mean_wt = mean(weight, na.rm = TRUE)) |> 
   ungroup()
 
-surveys_clean |> 
+surveys_clean |> filter(!is.na(year)) |> 
   ggplot(mapping = aes(year, mean_wt, color = fct_reorder2(genus, year, mean_wt))) +
   geom_line() +
   labs(color = "Genus")+

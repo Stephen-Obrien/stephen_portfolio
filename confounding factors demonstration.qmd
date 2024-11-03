@@ -1,0 +1,195 @@
+---
+title: "working with confounding variables"
+output:
+  html_document:
+    path: /Users/stephenobrien/Desktop/R_projects/portfolio/stephen_portfolio/supporting_artifacts
+format: 
+  html:
+    self-contained: true
+editor: visual
+theme: mint
+execute: 
+  warning: false
+  messages: false
+---
+
+# 3 Confounding
+
+```{r set_up_3}
+library(tidyverse)
+library(broom)
+
+```
+
+## 3.1 Correlation is not causation
+
+Spurious correlation
+
+-   this is data dredging or cherry picking data.
+
+example using monte carlo method
+
+1.  create 25 groups
+2.  create 2 observations for each group
+3.  create normal distribution data sets for each obsevation
+
+P-hacking is an issue in scientific literature.
+
+-   because journals are biased toward positive tests over negative tests. In other words, they are biased towards scientific results that show correlation. Researchers are insentivised to use statistical methods that have low p-values.
+
+-   some examples of p-hacking:
+
+    -   in epidimeology and other social sciences researchers may look for correlation between an average out come and several exposures, but only report the exposure that results in the small p-value
+
+    -   fitting several different models that account for confounding but only report the model that results in the smallest p-value.
+
+```{r}
+N <- 25
+g<- 1000
+
+sim_data <- tibble(group = rep(1:g, each = N), x = rnorm(N * g), y = rnorm(N * g))
+
+# calculate the correltatoin for each group
+res <- sim_data |> 
+  group_by(group) |> 
+  summarise(r = cor(x, y)) |> 
+  arrange(desc(r))
+res
+
+# graph points from the data set with maximum correlation
+
+sim_data |> 
+  filter(
+    group == pull(slice_max(res, r), group) # filter for group with highest cor.
+  ) |> 
+  ggplot(aes(x,y)) +
+  geom_point() +
+  geom_smooth(method = "lm")
+
+#hist of group correlation in monte carlo simulation 
+res |> 
+  ggplot(aes(x = r)) +
+  geom_histogram(binwidth = 0.1)
+
+# linear model for group with highest r 
+sim_data |> 
+  filter(
+    group == pull(slice_max(res,r), group)
+  ) |> 
+  summarize(tidy(lm(y ~ x)))
+    
+```
+
+## 3.2 outliers
+
+Outliers can effect the correlation coeffecient.
+
+```{r}
+# simulate independent X, Y and standardize all except entry 23
+# note that you may get different values than those shown in the video depending on R
+set.seed(1985)
+x <- rnorm(100,100,1)
+y <- rnorm(100,84,1)
+x[-23] <- scale(x[-23])
+y[-23] <- scale(y[-23])
+
+# plot to show the outlier
+
+qplot(x, y, alpha = 0.5)
+
+# cor would be 0 or close to 0 with no outlier but because f of the outlier there appears to be strong correlation, but when remove it the calue is almost zero
+
+cor(x,y)
+cor(x[-23], y[-23])
+```
+
+### Spearman correlation:
+
+the Spearman correlation calculation ranks the each data point in the data sets. This accounts for outliers
+
+```{r}
+qplot(rank(x), rank(y))
+cor(rank(x), rank(y))
+
+# you can use the spearman correlation calculation within the cor() function
+cor(x, y, method = "spearman")
+```
+
+### 3.3 Reversing correlation and causation:
+
+saying that not being tutored lowers test scores instead of saying being tutored raises test stars
+
+or
+
+saying that a tall son causes a tall father
+
+so
+
+intepretation requires common sense
+
+## 3.4 confounders
+
+**most common reason correlations are misinterpreted**
+
+A confounder is not something that changes X and Y
+
+### Men vs. women acceptance rate for UC Berkeley in1973 as an example of misinterpreting correlation
+
+-   this is an examples of Simpsons paradox which is explained in the next video.
+
+looking at over all acceptance men are more likely than women to be accepted.
+
+-   a chi-squared test clearly reject the hypothesis that acceptance and gender are independent and has a very low p-value
+
+**BUT**
+
+when we look at the data more closely we see that women applied more to the low acceptance rate majors while men applied to the higher acceptance rate majors.
+
+```{r}
+library(dslabs)
+data(admissions)
+admissions
+
+# calculate women vs. men admitted
+admissions |> colnames()
+admissions |> 
+  group_by(gender) |> 
+  summarize(
+          percentage = round(sum(admitted * applicants)/sum(applicants), 1))
+
+# test if admission and geneder are independent
+admissions |> 
+  group_by(gender) |> 
+  summarize(total_admitted = round(sum(admitted / 100 * applicants)),
+            not_admitted = round(sum((100- admitted) / 100 * applicants))) |> 
+  select(-gender) %>%
+  summarize(tidy(chisq.test(.)))
+
+# percent by major
+
+admissions |> 
+  select(gender, major, admitted) |> 
+  pivot_wider(names_from = gender, values_from = admitted) |> 
+  mutate(women_minus_men = women - men)
+
+# plot % of applicants admitted by gender
+admissions |> 
+  mutate(percent_admitted = admitted * applicants / sum(applicants)) |> 
+  ggplot(aes(gender, y = percent_admitted, fill = major)) + 
+  geom_bar(stat = "identity", position = "stack")
+# from this we can see that a majority of the men admitted com from major A and B
+
+
+# plot admissions stratified by major
+
+admissions |> 
+  ggplot(aes(major, admitted, color = gender, size = applicants)) + 
+  geom_point()
+
+#avaerage aditted rate across majors by gender
+admissions |> 
+  group_by(gender) |> 
+  summarize(average = round(mean(admitted), 1))
+```
+
+## 

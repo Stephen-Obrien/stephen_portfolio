@@ -3,6 +3,9 @@ title: "Data Importing Cleaning, and Data Visualization"
 format: 
   html:
     self-contained: true
+    toc: true
+    toc-location: right
+    toc-depth: 3
 editor: visual
 execute:
   warning: false
@@ -10,25 +13,184 @@ code-fold: true
 theme: mint
 ---
 
-# Demonstration table 
+# Demonstration table
 
-+-----------------------------------------------------------+----------------------------------------+
-| Skill                                                     | Problems Demonstrated                  |
-+===========================================================+========================================+
-| I can modify existing variables and create new            | -   Hip Hop data set step 4.           |
-| variables in a dataframe for a variety of data types      |                                        |
-| (e.g., numeric, integer, character, factor, date).        | -   Rodent Ecological Study: problem 3 |
-+-----------------------------------------------------------+----------------------------------------+
-| I can find summaries of variables across multiple groups. | -   Baby Names data set final table    |
-+-----------------------------------------------------------+----------------------------------------+
-|                                                           |                                        |
-+-----------------------------------------------------------+----------------------------------------+
-|                                                           |                                        |
-+-----------------------------------------------------------+----------------------------------------+
-|                                                           |                                        |
-+-----------------------------------------------------------+----------------------------------------+
++--------------------------------------------------------------------------------------------------------------------------------------------------------+-----------------------------------------------------------------------+
+| Skill                                                                                                                                                  | Problems Demonstrated                                                 |
++========================================================================================================================================================+=======================================================================+
+| I can modify existing variables and create new variables in a dataframe for a variety of data types (e.g., numeric, integer, character, factor, date). | -   Hip Hop data set step 4.                                          |
+|                                                                                                                                                        |                                                                       |
+|                                                                                                                                                        | -   Rodent Ecological Study: problem 3                                |
++--------------------------------------------------------------------------------------------------------------------------------------------------------+-----------------------------------------------------------------------+
+| I can find summaries of variables across multiple groups.                                                                                              | -   Baby Names data set final table @summarize-across-groups-example1 |
++--------------------------------------------------------------------------------------------------------------------------------------------------------+-----------------------------------------------------------------------+
+| applying functions                                                                                                                                     | -   rescaled length plot                                              |
++--------------------------------------------------------------------------------------------------------------------------------------------------------+-----------------------------------------------------------------------+
 
-: Index of Examples
+: 
+# linked up. 
+
+[Utilizing Functions](# 3 Spelling by State)
+
+
+# Functions and Fish
+
+The data set used in this section of code includes the fish captured and tagged in various trip from 1989 to 2006 on the Johnsrud and Scotty Brown sections of the Black Foot river. The length, weight, the year it was caught, the section of the river, what number trip of the year it was, and if it had already been marked were recorded for each fish.
+
+```{r setup}
+#| include: false
+
+rm(list = ls())
+library(tidyverse)
+fish <- read_csv(here::here("supporting_artifacts", "ref.work", "lab7", "BlackfootFish.csv" ))
+```
+
+## Locating Missing Data
+
+The missing function written below identifys the quantity of missing data for a single variable. It does this by summing the number of NAs within a column.
+
+```{r missing_function}
+missing <- function(x) {
+  sum(is.na(x))
+}
+```
+
+The next code chunk applies the missing function across all of the factors. The table is then pivoted so the factors are now a variable and the number of missing data points is another variable. Finally the table is arranged in descending order by the number of missing data points.
+
+```{r missing_table}
+#| arrange_nrow: 2
+fish |> 
+  mutate(
+    across(
+      .cols = everything(), .fns = ~(missing(.x))
+    )
+    ) |> 
+  distinct(weight, .keep_all = TRUE) |> 
+  pivot_longer(
+    cols = everything(),
+    names_to = "Observation Type",
+    values_to = "Missing Data Points"
+    ) |> 
+  arrange(desc(`Missing Data Points`))
+```
+
+### missing data visualization
+
+The visual generated by the next code chunk represents which variables explain most of the missing data.\
+the variables included in the visual are the river section, the year and the trip.
+
+```{r missing_visual}
+my_title <- theme(plot.title = element_text(hjust = 0.5, size = 18))
+
+missing_fish <- fish |> 
+  filter(is.na(weight == 0)) |> 
+  group_by(section, trip, year) |> 
+  summarize(weight = sum(is.na(weight)), .groups = "keep") |> 
+  ungroup() |> 
+  arrange(desc(year)) |> 
+  rename("missing" = "weight")
+
+missing_fish |> 
+  mutate(trip = as.character(trip)) |> 
+  ggplot() +
+    geom_col(mapping = aes(x = year, 
+                           y =  missing, 
+                           fill = trip)) +
+    facet_wrap(~section, nrow = 2) + 
+    labs(title = "Missing Data Visualization", 
+         y = NULL, 
+         x = "Year",
+         fill = "Trip",
+         caption = "*Johnsrud and Scotty Brown
+         refer to the section of river") + 
+  my_title +
+   scale_x_continuous(
+    breaks = scales::pretty_breaks(n = 10)
+                     )
+```
+
+## **Part Two: Adjusting the Data (Function Writing)**
+
+### a) Rescale function.
+
+the function `rescale01` below replaces the value of each data point with a fraction the is equivelent to the relative distance from the minum value of the range of the data points (0.00 would be the min, 1.00 would be the max). the function first checks to ensure the data is numeric, and has a length greater than 1.
+
+```{r rescale_fun}
+
+rescale01 <- function(x){
+  stopifnot(is.numeric(x) | (length(x) > 1) == TRUE) # add check.
+  r <- range(x, na.rm = TRUE)
+  (x - r[1]) / (r[2] - r[1])
+}
+```
+
+### b) Simple check for `rescale01` function.
+
+The function is applied to a data set containing the inetergers from 1 to 25 and 1 NA data point.
+
+```{r simple_check}
+x <- c(1:25, NA)
+rescale01(x)
+```
+
+### c) More difficult check
+
+2 bar and whisker plots are created in the next code chunk. Both plots are visualization of the distribution of fish length from the fish data set. the first plot, the one with dark green fill, uses length data after the `rescale01` function was applied. the second plot uses the raw length data. All data points for the dark green plot fall between 0 and 1.
+
+```{r}
+#| layout-nrow: 1
+
+fish |> mutate(rescaled = rescale01(length)) |> 
+  ggplot() +
+  geom_boxplot(
+    mapping = aes(x = rescaled), fill = "darkgreen", 
+    outlier.color = "darkgreen", outlier.alpha = 0.1
+    ) +
+  labs(title = "Rescaled Length", x = NULL) +
+  theme(axis.text.y = element_text(size = 0)) +
+  my_title
+
+fish |>  
+  ggplot() +
+  geom_boxplot(
+    mapping = aes(x = length), fill = "darkred", 
+    outlier.color = "darkred",outlier.alpha = 0.1
+    ) +
+  labs(title = "Orginal Length (cm)") +
+  theme(axis.text.y = element_text(size = 0)) +
+  my_title
+```
+
+### Re-scale function for columns within a data frame.
+
+The `rescale0` function from earlier could be applied to a `df` if used within the `mutate( )` function. the `rescale_column` function below can be applied to a set of columns within a data frame without using the mutate function.
+
+```{r}
+rescale_column <- function(df, var) {
+  df <- df |> mutate(
+                across(
+                  .cols = {{ var }},
+                  .fns = rescale01
+                )
+    )
+  
+  return(df)
+}
+```
+
+#### `rescale_column` applied.
+
+Below are two lines of code that produce the same data frame.\
+The first line of code compared to the second exemplifies the outcome of efficient code and the importance of the function tool for creating concise code. The difference could be much more pronounced more variable needed to be resclaed.
+
+```{r}
+fish |> rescale_column(c(length, weight))
+
+fish |> mutate(length = rescale01(length),
+               weight = rescale01(weight))
+```
+
+.
 
 # Hip-hop data set
 
@@ -108,9 +270,7 @@ demo |>
   count()
 ```
 
-## 8.
-
-### Demographic Plots
+## 8. Demographic Plots
 
 Visualization of data set demographics by sex, age, and ethnicity.
 
@@ -197,7 +357,7 @@ hiphop_clean |>
 
 If Justin was in this study he would be participant #17.
 
-# Rodent Ecological Study: 
+# Rodent Ecological Study:
 
 The Portal Project is a long-term ecological study being conducted near Portal, AZ. Since 1977, the site has been used to study the interactions among rodents, ants and plants and their respective responses to climate. To study the interactions among organisms, we experimentally manipulate access to 24 study plots. This study has produced over 100 scientific papers and is one of the longest running ecological studies in the U.S.
 
@@ -248,6 +408,7 @@ surveys_clean |> filter(!is.na(year)) |>
   ylab("mean weight (g)") +
   ggtitle("Time Series of Genus Weight in Years") +
   theme(legend.box.background = element_rect(fill = "grey"))
+
   
 
 ```
@@ -312,7 +473,7 @@ bb_names <- read_csv(here::here("supporting_artifacts", "ref.work", "lab9", "Sta
 bb_names <- bb_names |> rename("Sex" = "Gender")
 ```
 
-# 1 Creating table 
+# 1 Creating table
 
 This table takes a closer look at babies who received the name Allison and if their Sex was Male or Female.
 
@@ -360,12 +521,12 @@ bb_lm |> broom::augment() |>
 broom::glance(bb_lm) |> select(r.squared)
 ```
 
-**Interpretation of the Data.** \
+**Interpretation of the Data.**\
 The name Alison has been trending down in popularity since 1997. A linear model that models this trend predict lower than the number of babies named Alison in more recent years. Rare names are cool and it seems like people might be catching on based on the residuals. Also, with r squared value of 0.58 we can not place too much emphasis on the correlation of this trend.
 
-# 5. Investigating Overlooked Factor. 
+# 3 Spelling by State
 
-Babies can receive the same name with different spelling. the following code looks at the distribution of Alan, Allan, and Allen.
+Babies can receive the same name with different spelling. the following code looks at the distribution of Alan, Allan, and Allen stratified by state.
 
 ```{r}
 bb_clean <- bb_names |> filter(
@@ -393,3 +554,5 @@ bb_clean |> group_by(State) |>
 ```
 
 In California and in Pennsylvania the the spelling Allan had the lowest percent both states.
+
+# 

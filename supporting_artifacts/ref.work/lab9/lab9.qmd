@@ -14,8 +14,11 @@ theme: mint
 
 ```{r set_up}
 library(tidyverse)
+options(pillar.width = Inf)
+
 bb_names <- read_csv(here::here("supporting_artifacts", "ref.work", "lab9", "StateNames_A.csv"))
 bb_names <- bb_names |> rename("Sex" = "Gender")
+bb_names
 ```
 
 # 2

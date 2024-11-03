@@ -11,6 +11,7 @@ theme: mint
 
 ```{r setup, include=FALSE}
 library(tidyverse)
+library(here)
 ```
 
 ```{r load.data, include=FALSE}
@@ -88,6 +89,8 @@ demo |>
 
 ### Demographic Plots
 
+Visualization of data set demographics by sex, age, and ethnicity.
+
 ```{r demographic_plots}
 #|plot_position: center
 ggplot(data = demo) +
@@ -108,7 +111,7 @@ ggplot(data = hiphop_w) +
 
 ### Familiar words
 
-```{r familiar, include=FALSE}
+```{r familiar}
 
 familiar <- hiphop_clean |> 
   filter(age < 20) |> 
@@ -153,7 +156,7 @@ familiar |>
 
 -   non-white women were most familiar with "feel me" and least familiar with "The Nation", "dukey rope", "plex", and "rollie".
 
--   white men over 30 were least familiar with "feel me" and least familiar with a list of 25 words including "breezy", "break someone out", "catch the vapors" and 22 other words.
+-   white men over 30 were most familiar with "feel me" and least familiar with a list of 25 words including "breezy", "break someone out", "catch the vapors" and 22 other words.
 
 ## Justin Bieber?
 

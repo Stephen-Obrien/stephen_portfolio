@@ -191,5 +191,5 @@ dream_college <- frsh |>
 
 ```{r not.Montana}
 dream_college <- dream_college |> 
-  filter(STABBR != "MT")
+  filter(STABBR != "MT") |> print()
 ```
