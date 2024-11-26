@@ -2,20 +2,6 @@
 
 ## About Me
 
-I am polymer chemist with a master's of Science in Polymer and Coatings Science from Cal Poly San Luis Obispo. In addition to my back ground in polymer synthesis and polymer characterization, I am experienced with statistical test and I am a compitent user of Rstudio.
+I am research chemist with a master's of Science in Polymer and Coatings Science from Cal Poly San Luis Obispo. My aim with my education and this repository is to move into a career as a computational chemist. I have been using Rstudio to clean and filter data sets, create visuals and tables, and automate work flows in my research work. Additionally, I have been built predictive models using a combination of models I learned from HarvardX's Data Science Certificate program. My projects have been completed using R and RStudio, but I am working through HarvardX's python for data science course now and will upload python code to this repo soon.
 
-In this portfolio I included labs from my computer science course work, which is found in the course work folder, which used sample data sets provided from the course. Also included in my course work is
-
-## Table of Contents
-
-### Course Work
-
-I.  Overview of Coursework and Learning Targets.
-
-II. 
-
-### Research Work
-
-I.  Introduction to Research (new addition)
-
-II. 
+## Table Of Contents:
