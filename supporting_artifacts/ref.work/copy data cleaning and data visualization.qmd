@@ -16,7 +16,7 @@ theme: mint
 # linked up.
 
 | Skill | Example |
-|------------------------------------|------------------------------------|
+|----|----|
 | I can filter rows from a data frame for a variety of data type (e.g., numeric, integer, character, factor, date). | [missing data](#missingdata) |
 | I can modify existing variables and create new variables in a dataframe for. a variety of data types. | [data cleaning example](#college_cleaning) |
 | I can use mutating joins to combine multiple data frames. | [pivot longer](#pivotlong_example) |
