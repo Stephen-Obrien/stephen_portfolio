@@ -2,7 +2,7 @@
 
 # Currently Under construction for updating my table of contents with machine learning examples and some house cleaning by removing projects that are less relevant. {style="color: orange"}
 
-#   - Stephen 11/26/24 {style="color: orange"}
+# - Stephen 11/26/24 {style="color: orange"}
 
 ## About Me
 
@@ -10,4 +10,8 @@ I am research chemist with a master's of Science in Polymer and Coatings Science
 
 ## Table Of Contents:
 
-1.  
+-   Research Work
+
+    -   Thesis.html
+
+-   supporting_artifacts
