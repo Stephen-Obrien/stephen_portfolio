@@ -1,8 +1,8 @@
 # Stephen_portfolio
 
-# Currently Under construction for updating my table of contents with machine learning examples and some house cleaning by removing projects that are less relevant. {style="color: orange"}
+# Currently Under construction for updating my table of contents with machine learning examples and some house cleaning by removing projects that are less relevant.
 
-# - Stephen 11/26/24 {style="color: orange"}
+# - Stephen 11/26/24
 
 ## About Me
 
