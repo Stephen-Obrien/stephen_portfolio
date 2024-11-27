@@ -27,16 +27,6 @@ I am currently in the midst of using my projects to create snapshots for potenti
 
     -   Thesis.html
 
--   machine_learning
-
-    -   .DS_Store
-
-    -   Machine Learning.qmd
-
-    -   confounding factors demonstration.html
-
-    -   confounding factors demonstration.qmd
-
 -   data_cleaning example
 
     -   .DS_Store
@@ -46,3 +36,13 @@ I am currently in the midst of using my projects to create snapshots for potenti
     -   data cleaning and data visualization.html
 
     -   data cleaning and data visualization.qmd
+
+-   machine_learning
+
+    -   .DS_Store
+
+    -   Machine Learning.qmd
+
+    -   confounding factors demonstration.html
+
+    -   confounding factors demonstration.qmd
