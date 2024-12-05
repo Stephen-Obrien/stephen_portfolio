@@ -1,0 +1,55 @@
+---
+title: "scratch work"
+format: html
+editor: visual
+---
+
+## 
+
+## Predicting sex based on height
+
+A simple example designed to illustrate the basics of a predictive model. The "model" has just one predictor, height, and a categorical outcome, sex. The task can be completed with a simple `ifelse()` function. The is only one decision, is the height less than h, to determine the output $\hat y$. The fundamentals of a predictive model is encompassed here.
+
+Data is subset into a training set and a test set.\
+A cut off height (h) is determined from the training set.\
+Sex is predicted based on heights from the test set.\
+Accuracy is calculated as proportion of correct predictions.
+
+```{r setup_predicting_sex}
+library(caret)
+library(tidyverse)
+library(dslabs)
+data(heights)
+```
+
+```{r}
+#create a data partition
+y <- heights$sex # possible outputs
+
+set.seed(2007)
+test_index <- createDataPartition(y, times = 1, p = 0.5,
+                                list = FALSE)
+test_set <- heights[test_index,]
+train_set <- heights[-test_index,]
+
+#Predict based on height
+#use train set to create the height
+h <- train_set |> filter(sex == "Male") |> 
+  summarize (
+    x = (mean(height) - 2*sd(height))
+    ) |> pull(x)
+h
+boysaretall <- function(x)  {
+  ifelse(x > h, "Male", "Female")
+}
+#apply to the test set. 
+y_hat <- boysaretall(test_set$height) |> 
+  factor(levels = levels(heights$sex))
+
+#compute accuracy
+mean(y_hat == test_set$sex)
+
+
+#Confusion Matrix
+confusionMatrix(data = y_hat, reference = test_set$sex)
+```

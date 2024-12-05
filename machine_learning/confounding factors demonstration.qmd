@@ -35,11 +35,11 @@ example using monte carlo method
 
 P-hacking is an issue in scientific literature.
 
--   because journals are biased toward positive tests over negative tests. In other words, they are biased towards scientific results that show correlation. Researchers are insentivised to use statistical methods that have low p-values.
+-   because journals are biased toward positive tests over negative tests. In other words, they are biased towards scientific results that show correlation. Researchers are insensitivesed to use statistical methods that have low p-values.
 
 -   some examples of p-hacking:
 
-    -   in epidimeology and other social sciences researchers may look for correlation between an average out come and several exposures, but only report the exposure that results in the small p-value
+    -   in epidemiology and other social sciences researchers may look for correlation between an average out come and several exposures, but only report the exposure that results in the small p-value
 
     -   fitting several different models that account for confounding but only report the model that results in the smallest p-value.
 
@@ -95,7 +95,7 @@ y[-23] <- scale(y[-23])
 
 # plot to show the outlier
 
-qplot(x, y, alpha = 0.5)
+qplot(x, y, alpha = 0.5, show_guide = FALSE)
 
 # cor would be 0 or close to 0 with no outlier but because f of the outlier there appears to be strong correlation, but when remove it the calue is almost zero
 
@@ -115,27 +115,15 @@ cor(rank(x), rank(y))
 cor(x, y, method = "spearman")
 ```
 
-### 3.3 Reversing correlation and causation:
-
-saying that not being tutored lowers test scores instead of saying being tutored raises test stars
-
-or
-
-saying that a tall son causes a tall father
-
-so
-
-intepretation requires common sense
-
 ## 3.4 confounders
 
 **most common reason correlations are misinterpreted**
 
 A confounder is not something that changes X and Y
 
-### Men vs. women acceptance rate for UC Berkeley in1973 as an example of misinterpreting correlation
+### Ex. Men vs. women acceptance rate for UC Berkeley in1973 as an example of misinterpreting correlation
 
--   this is an examples of Simpsons paradox which is explained in the next video.
+-   this is an examples of Simpsons paradox.
 
 looking at over all acceptance men are more likely than women to be accepted.
 
@@ -151,7 +139,6 @@ data(admissions)
 admissions
 
 # calculate women vs. men admitted
-admissions |> colnames()
 admissions |> 
   group_by(gender) |> 
   summarize(
@@ -178,7 +165,7 @@ admissions |>
   ggplot(aes(gender, y = percent_admitted, fill = major)) + 
   geom_bar(stat = "identity", position = "stack")
 # from this we can see that a majority of the men admitted com from major A and B
-
+s
 
 # plot admissions stratified by major
 
